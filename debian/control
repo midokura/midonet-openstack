@@ -1,0 +1,22 @@
+Source: midolman-nova
+Section: non-free/python
+Priority: extra
+Maintainer: Ryu Ishimoto <ryu@midokura.com>
+Uploaders: Adam Johnson <adam@midokura.com>,
+ Giuseppe de Candia <pino@midokura.com>,
+ Jacob Mandelson <jacob@midokura.jp>,
+ Dan Dumitriu <dan@midokura.com>,
+ Yoshi Tamura <yoshi@midokura.com> 
+Build-Depends: debhelper (>= 7.0.50~), autotools-dev, python, python-support,
+ python-unittest2, python-all-dev
+Standards-Version: 3.9.1.0
+Homepage: https://github.com/midokura/midolman-nova
+Vcs-Git: https://github.com/midokura/midolman-nova.git
+Vcs-Browser: https://github.com/midokura/midolman-nova
+
+Package: python-midolman-nova
+Architecture: all
+Depends: ${misc:Depends}, ${python:Depends}, python-openvswitch
+Description: OpenStack plugin for Midolman.
+ Midolman implements OpenStack Nova's network API to serve as its network
+ service provider.

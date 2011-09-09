@@ -1,0 +1,32 @@
+Template: midolman-agent-common/server-host
+Type: string
+Default: 127.0.0.1
+Description: IP address of the Midonet Agent host:
+ The MidoNet Agent server runs on this IP address to provide service for
+ local network management.
+
+Template: midolman-agent-common/server-port
+Type: string
+Default: 8999
+Description: Port number of the Midonet Agent TCP server:
+ The MidoNet Agent TCP server listens to this port number to provide service
+ for local network management.
+
+Template: midolman-agent-common/midolman-conf
+Type: string
+Default: /etc/midolman.conf
+Description: Path to the Midolman configuration file:
+ Midonet Agent relies on Midolman configuration parameters to perform certain
+ tasks.
+
+Template: midolman-agent-common/openvswitch-bridge_prefix
+Type: string
+Default: midobr
+Description: Prefix for the Openvswitch bridge name:
+ MidoNet creates OVS bridge with name set to this value as its prefix.
+
+Template: midolman-agent-common/interface-mtu
+Type: string
+Default: 1300
+Description: MTU for the interfaces used in Midolman:
+ MidoNet sets the MTU of the interfaces created.
