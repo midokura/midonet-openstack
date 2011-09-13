@@ -25,7 +25,6 @@ class TestBridge(unittest.TestCase):
 
     def test_get(self):
     
-        url = 'bridges/%s' % self.bridge_id 
         r, c = self.mido_client.get_bridge(self.bridge_id)
         print r
         self.assertEquals(r['status'], '200')
@@ -33,12 +32,20 @@ class TestBridge(unittest.TestCase):
 
     def test_update(self):
 
-        url = 'bridges/%s' % self.bridge_id 
         name = 'test_bridge_new_name'
         r, c = self.mido_client.update_bridge(self.bridge_id, name)
         print r
         self.assertEquals(r['status'], '200')
         print c
+
+    def test_index(self):
+        name = "test_bridge_name_2"
+        r, c = self.mido_client.create_bridge(self.tenant_id, name)
+        r, c = self.mido_client.index_bridge(self.tenant_id)
+        decoded_c = eval(c)
+        self.assertEquals(len(decoded_c), 2)
+        self.assertTrue(decoded_c[0]['name'] in  ['test_bridge_name_2', 'test_bridge_name'])
+        self.assertTrue(decoded_c[1]['name'] in  ['test_bridge_name_2', 'test_bridge_name'])
         
 
 if __name__ == '__main__':

@@ -60,20 +60,31 @@ class MidonetClient:
         body = '{"name": "%s"}' % name
         return self._do_request(location, "PUT", body)
 
+    def index_bridge(self, tenant_id):
+        assert tenant_id != None
+        location = 'tenants/%s/bridges' % tenant_id
+        return self._do_request(location, "GET")
+
+
 
 def main():
 
     client = MidonetClient(token = '999888777666')
 #    r, c = b.create('c8854067-4c04-41d6-99cf-4e317e0999af', 'midobridge')
-    r, c = client.get_bridge('317df47a-bd68-4a97-a617-160f73aa3127')
 
-    print "response: ", r
-    print "contents: ", c
+    while True:
+        try:
+            input = raw_input('midonet_client> ')
+            input = input.split()
+            method_name, args = input[0], input[1:]
 
-    r, c = client.update_bridge('317df47a-bd68-4a97-a617-160f73aa3127', "shika")
+            method = getattr(client, method_name)
+            r, c = method(*args)
+            print "response: ", r
+            print "content: ", c
+        except Exception as e:
+            print "Caught exeption: ", e
 
-    print "response: ", r
-    print "contents: ", c
 
 if __name__ == '__main__':
     sys.exit(main())
