@@ -46,6 +46,12 @@ class TestBridge(unittest.TestCase):
         self.assertEquals(len(decoded_c), 2)
         self.assertTrue(decoded_c[0]['name'] in  ['test_bridge_name_2', 'test_bridge_name'])
         self.assertTrue(decoded_c[1]['name'] in  ['test_bridge_name_2', 'test_bridge_name'])
+
+
+    def test_delete(self):
+        
+        r, c = self.mido_client.delete_bridge(self.bridge_id)
+        self.assertEquals(r['status'], '204')
         
 
 if __name__ == '__main__':

@@ -3,6 +3,7 @@
 
 import sys
 import httplib2
+import readline
 
 
 class MidonetClient:
@@ -64,6 +65,12 @@ class MidonetClient:
         assert tenant_id != None
         location = 'tenants/%s/bridges' % tenant_id
         return self._do_request(location, "GET")
+
+    def delete_bridge(self, bridge_id):
+        assert bridge_id != None
+        location = 'bridges/%s' % bridge_id
+        return self._do_request(location, "DELETE")
+
 
 
 
