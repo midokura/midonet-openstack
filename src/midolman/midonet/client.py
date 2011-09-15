@@ -6,16 +6,17 @@ import httplib2
 import readline
 
 
+MIDONET_API_SERVER = 'http://localhost:8080'
+
 class MidonetClient:
 
     def __init__(self, token):
         self.h = httplib2.Http()
         self.token = token
-        pass
 
     def _do_request(self, location, method, body='{}'):
 
-        url = 'http://localhost:8080/midolmanj-mgmt/v1/%s' % location
+        url = MIDONET_API_SERVER + '/midolmanj-mgmt/v1/%s' % location
         print "-------------------"
         print "URL: ", url
         print "method: ", method
@@ -26,9 +27,6 @@ class MidonetClient:
         "HTTP_X_AUTH_TOKEN": self.token} 
         )
         return response, content 
-
-
-
 
     def create_tenant(self, uuid=None):
         body = '{}'
@@ -94,11 +92,42 @@ class MidonetClient:
         return self._do_request(location, "DELETE")
 
 
+    # router
+    def create_router(self, tenant_id, name):
+        assert tenant_id != None
+        assert name != None
+        location = 'tenants/%s/routers' % tenant_id
+        body ='{"name": "%s"}' % name
+        return self._do_request(location, "POST", body)
+
+    def get_router(self, router_id):
+        assert router_id != None
+        location = 'routers/%s' % router_id
+        return self._do_request(location, "GET")
+
+    def list_router(self, tenant_id):
+        assert tenant_id != None
+        location = 'tenants/%s/routers' % tenant_id
+        return self._do_request(location, "GET")
+
+    def update_router(self, router_id, name):
+        assert router_id != None
+        assert name != None
+        location = 'routers/%s' % router_id
+        body ='{"name": "%s"}' % name
+        return self._do_request(location, "PUT", body)
+
+
+
+
+
 
 
 def main():
 
-    client = MidonetClient(token = '999888777666')
+#    client = MidonetClient(token = '999888777666')
+    #client = MidonetClient(token = '111222333444')
+    client = MidonetClient(token = '2010')
 #    r, c = b.create('c8854067-4c04-41d6-99cf-4e317e0999af', 'midobridge')
 
     while True:
