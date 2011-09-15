@@ -71,22 +71,22 @@ class MidonetClient:
 
 
     # bridge port
-    def create_port(self, bridge_id):
+    def create_bridge_port(self, bridge_id):
         assert bridge_id != None
         location = 'bridges/%s/ports' % bridge_id
         return self._do_request(location, "POST")
 
-    def get_port(self, port_id):
+    def get_bridge_port(self, port_id):
         assert port_id != None
         location = 'ports/%s' % port_id
         return self._do_request(location, "GET")
 
-    def list_port(self, bridge_id):
+    def list_bridge_port(self, bridge_id):
         assert bridge_id != None
         location = 'bridges/%s/ports' % bridge_id
         return self._do_request(location, "GET")
 
-    def delete_port(self, port_id):
+    def delete_bridge_port(self, port_id):
         assert port_id != None
         location = 'ports/%s' % port_id
         return self._do_request(location, "DELETE")
