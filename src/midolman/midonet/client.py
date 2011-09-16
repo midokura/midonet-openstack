@@ -117,9 +117,68 @@ class MidonetClient:
         body ='{"name": "%s"}' % name
         return self._do_request(location, "PUT", body)
 
+    # router port
+    def create_router_materialized_port(self, router_id, network_address,\
+                                            network_length, port_address,\
+                                            local_network_address,\
+                                            local_network_length):
+
+        location = 'routers/%s/ports' % router_id
+
+        body = \
+'{"\
+networkAddress": "%s",\
+"networkLength": %s,\
+"type": "Materialized",\
+"portAddress":"%s",\
+"localNetworkAddress": "%s",\
+"localNetworkLength":%s}' % \
+            (network_address,\
+             network_length,\
+             port_address,\
+             local_network_address,\
+             local_network_length)
+        return self._do_request(location, "POST", body)
+
+    def create_router_logical_port(self, router_id, network_address,\
+                                       network_length, port_address,\
+                                       peer_id=None):
+
+        location = 'routers/%s/ports' % router_id
+        if peer_id is None:
+
+            body = \
+'{"networkAddress": "%s",\
+"networkLength": %s,\
+"type": "Logical",\
+"portAddress": "%s"}' %\
+                (network_address, network_length, port_address)
+        else:
+            body = \
+'{"networkAddress": "%s",\
+"networkLength": %s,\
+"type": "Logical",\
+"portAddress":"%s",\
+ "peerId":"%s"}' %\
+                (network_address, network_length, port_address, peer_id)
+        return self._do_request(location, "POST", body)
+
+    def create_router_logical_port_with_peer_id(self, *args):
+        return self.create_router_logical_port(*args)
 
 
+    def get_router_port(self, port_id):
+        location = 'ports/%s' % port_id
+        return self._do_request(location, "GET")
 
+    def list_router_port(self, router_id):
+        location = 'routers/%s/ports' % router_id
+        return self._do_request(location, "GET")
+
+    def update_router_port_peer_id(self, port_id, peer_id):
+        location = 'ports/%s' % port_id
+        body = '{"peerId": "%s"}' % peer_id
+        return self._do_request(location, "PUT", body)
 
 
 
