@@ -40,7 +40,7 @@ class MidonetManager(NetworkManager):
         print 'router_name', router_name 
 
         # Create the tenant.  Swallow any error here.(YUCK!)
-        #response, content = mc.create_tenant(tenant_id)
+        response, content = mc.create_tenant(tenant_id)
 
         # Create a router for this tenant.
         response, content= mc.create_router(tenant_id, router_name)
