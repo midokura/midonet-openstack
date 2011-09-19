@@ -28,6 +28,7 @@ class MidonetClient:
         )
         return response, content 
 
+    # tenants
     def create_tenant(self, uuid=None):
         body = '{}'
         if uuid:
@@ -36,7 +37,7 @@ class MidonetClient:
     
         return self._do_request("tenants", "POST", body)
 
-    # bridge
+    # bridges
     def create_bridge(self, tenant_id, name):
         assert tenant_id != None
         assert name != None
@@ -70,7 +71,7 @@ class MidonetClient:
         return self._do_request(location, "DELETE")
 
 
-    # bridge port
+    # bridge ports
     def create_bridge_port(self, bridge_id):
         assert bridge_id != None
         location = 'bridges/%s/ports' % bridge_id
@@ -92,7 +93,7 @@ class MidonetClient:
         return self._do_request(location, "DELETE")
 
 
-    # router
+    # routers
     def create_router(self, tenant_id, name):
         assert tenant_id != None
         assert name != None
@@ -140,31 +141,23 @@ networkAddress": "%s",\
              local_network_length)
         return self._do_request(location, "POST", body)
 
-    def create_router_logical_port(self, router_id, network_address,\
+    def link_router(self, router_id, network_address,\
                                        network_length, port_address,\
-                                       peer_id=None):
+                                       peer_port_address,\
+                                       peer_router_id):
 
-        location = 'routers/%s/ports' % router_id
-        if peer_id is None:
+#curl -i -X POST -H "HTTP_X_AUTH_TOKEN: 111222333444" -H "Content-Type: application/json" -d '{"networkAddress": "10.0.0.0", "networkLength": 24, "portAddress": "10.0.0.1", "peerPortAddress": "10.0.0.2", "peerRouterId": "321fc574-5244-44a4-bc06-d5068bca7ab8"}' http://localhost:8080/midolmanj-mgmt/v1/routers/588425e9-0ba0-49f0-840d-d567397dab98/ports/link
 
-            body = \
+
+        location = 'routers/%s/ports/link' % router_id
+        body = \
 '{"networkAddress": "%s",\
 "networkLength": %s,\
-"type": "Logical",\
-"portAddress": "%s"}' %\
-                (network_address, network_length, port_address)
-        else:
-            body = \
-'{"networkAddress": "%s",\
-"networkLength": %s,\
-"type": "Logical",\
 "portAddress":"%s",\
- "peerId":"%s"}' %\
-                (network_address, network_length, port_address, peer_id)
+"peerPortAddress":"%s",\
+"peerRouterId":"%s"}' %\
+                (network_address, network_length, port_address, peer_port_address, peer_router_id)
         return self._do_request(location, "POST", body)
-
-    def create_router_logical_port_with_peer_id(self, *args):
-        return self.create_router_logical_port(*args)
 
 
     def get_router_port(self, port_id):
@@ -184,9 +177,7 @@ networkAddress": "%s",\
 
 def main():
 
-#    client = MidonetClient(token = '999888777666')
-    #client = MidonetClient(token = '111222333444')
-    client = MidonetClient(token = '2010')
+    client = MidonetClient(token = '999888777666')
 #    r, c = b.create('c8854067-4c04-41d6-99cf-4e317e0999af', 'midobridge')
 
     while True:
