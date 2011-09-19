@@ -1,92 +1,68 @@
-import nova.network.manager as nova_network_manager
+from midolman.midonet import client as midonet
+from nova.network.manager import NetworkManager 
 from nova.db import api
-import sys
+from nova import flags
+
+FLAGS = flags.FLAGS
+flags.DEFINE_string('mido_provider_router_id',
+                    'bb150806-f7cf-4aa3-9438-dccb58c86cc6',
+                    'UUID of the provider router in MidoNet')
+flags.DEFINE_string('mido_link_port_network_address',
+                    '10.0.0.0',
+                    'Network address for MidoNet logical ports')
+flags.DEFINE_integer('mido_link_port_network_len', 30,
+                     'Network address length for MidoNet logical ports')
+flags.DEFINE_string('mido_link_local_port_network_address',
+                    '10.0.0.1',
+                    'Network address for MidoNet local logical ports')
+flags.DEFINE_string('mido_link_peer_port_network_address',
+                    '10.0.0.2',
+                    'Network address for MidoNet logical port peer')
 
 
-sys.path.insert(0,'/home/tomoe/code/midolman-nova/src/midolman/midonet') 
-import client as midonet
+def _extract_id_from_header_location(response):
+    router_id = response['location'].split('/')[-1]
 
-#class NetworkManager(manager.SchedulerDependentManager):
+class MidonetManager(NetworkManager):
 
-class MidonetManager(nova_network_manager.NetworkManager):
-#    def __init__(self):
-#        print "-------------------Midonet Manager-------"
-
-#    def create_networks(self, context, label, cidr, multi_host, num_networks,
-#                        network_size, cidr_v6, gateway_v6, bridge,
-#                        bridge_interface, dns1=None, dns2=None, **kwargs):
-    def create_networks(self, context, **kwargs):
-
+    def create_network(self, context, label, cidr, multi_host,
+                       network_size, cidr_v6, gateway_v6, bridge,
+                       bridge_interface, dns1=None, dns2=None, **kwargs):
         print "-------------------Midonet Manager. create_networks-------"
-        print "---kwargs", kwargs
-#        print '----dir(context)', dir(context)
-#        print 'context.auth_token', context.auth_token
-#        print label
-#        print 'cidr', cidr
-#        print 'multi_host', multi_host
-#        print 'num_networks', num_networks
-#        print 'network_size', network_size
-#        print 'cidr_v6', cidr_v6
-#        print 'gateway_v6', gateway_v6
-#        print 'bridge', bridge
-#        print 'bridge_interface', bridge_interface
-#        print 'dns1', dns1
-#        print 'dns2', dns2
-        print '**kwargs', kwargs
-
-        project_id = kwargs['project_id']
-        print 'project_id: ', project_id
-
-        #"TODO(tomoe) hard_code token for provider role and router_id. should be stored in config file
-        context.auth_token = '2010'
-        PROVIDER_ROUTER_ID = '2e180574-6e14-4c03-922f-d811cfe83d68'
-
-        NETWORK_ADDRESS = '10.0.0.0'
-        NETWORK_LENGTH = '30'
-        PROVIDER_ROUTER_PORT_ADDRESS = '10.0.0.1'
-        TENANT_ROUTER_PORT_ADDRESS = '10.0.0.2'
-
-        
-        #TODO(tomoe) To check if the user has Provider role
-        #if  not MIDONET_PROVIDE_ROLE in  context.roles:
-        #   raise error or return some object to caller?
+        #PROVIDER_ROUTER_ID = '2e180574-6e14-4c03-922f-d811cfe83d68'
 
         mc = midonet.MidonetClient(context.auth_token)
-
-        # project_id maps to tenant_id
-        tenant_id = project_id
-
-        # create the tenant in midonet and create routers for the tenant
-        response, content = mc.create_tenant(tenant_id)
-        if kwargs['num_networks'] > 1:
-            raise  #TODO
+        tenant_id = kwargs['project_id']
         router_name = kwargs['label']
+
+        print 'context.auth_token', context.auth_token
+        print 'tenant_id', tenant_id 
+        print 'router_name', router_name 
+
+        # Create the tenant.  Swallow any error here.(YUCK!)
+        response, content = mc.create_tenant(tenant_id)
+
+        # Create a router for this tenant.
         response, content= mc.create_router(tenant_id, router_name)
-        router_id = response['location'].split('/')[-1]
+        router_id = _extract_id_from_header_location(response)
+        print 'router_id', router_id 
 
-        print response
-        print 'router-id', router_id
+        # Link this router to the provider router via logical ports.
+        response, content= mc.link_router(router_id,
+                                          FLAGS.mido_link_port_network_address,
+                                          FLAGS.mido_link_port_network_len,
+                                          FLAGS.mido_link_local_port_network_address,
+                                          FLAGS.mido_link_peer_port_network_address,
+                                          FLAGS.mido_provider_router_id)
 
-        # Create logical port on the provider router
-        response, content = mc.create_router_logical_port(router_id, NETWORK_ADDRESS,\
-                                       NETWORK_LENGTH, PROVIDER_ROUTER_PORT_ADDRESS,\
-                                       peer_id=None)
-        provider_port_id = response['location'].split('/')[-1]
-        
-        # create logical port on the tenant router
-        response, content = mc.create_router_logical_port(router_id, NETWORK_ADDRESS,\
-                                       NETWORK_LENGTH, TENANT_ROUTER_PORT_ADDRESS,\
-                                       peer_id=provider_port_id)
-
-        tenant_port_id = response['location'].split('/')[-1]
-
-        responce, content = mc.update_router_port_peer_id(provider_port_id, tenant_port_id)
-
-
-        #TODO(tomoe): call super to make nova happy. need to fake bridge_interface
-        networks = super(MidonetManager, self).create_networks(context, **kwargs)
+        # Create a network in Nova and link it with the tenant router in MidoNet. 
+        networks = super(MidonetManager, self).create_networks(context, label, cidr, multi_host, 1,
+                        network_size, cidr_v6, gateway_v6, bridge,
+                        bridge_interface, dns1, dns2, kwargs)
+        if networks is None or len(networks) == 0:
+            return None
+        network = networks[0]
 
         # Hack to put uuid inside database
-        api.network_update(context, networks[0].id, {"uuid": router_id})
-
-
+        api.network_update(context, networks.id, {"uuid": router_id})
+        return network
