@@ -182,7 +182,26 @@ networkAddress": "%s",\
     def unplug_vif(self, port_id, vif_id):
         location = 'ports/%s/unplug' % port_id
         body = '{"vifId": "%s"}' % vif_id
-        return self._do_request(location, "PUT")
+        return self._do_request(location, "PUT", body)
+
+    # routes
+    def create_route(self, router_id, src_network_addr, src_network_length, type_,
+                     dst_network_addr, dst_network_length, next_hop_port, next_hop_gateway, weight):
+
+        location = 'routers/%s/routes' % router_id
+        body = '{"srcNetworkAddr": "%s", "srcNetworkLength": %s, "type": "%s","dstNetworkAddr": "%s", "dstNetworkLength": %s, "nextHopPort": "%s", "nextHopGateway": "%s", "weight": %s}' % \
+            (src_network_addr, src_network_length, type_, 
+             dst_network_addr, dst_network_length, next_hop_port, next_hop_gateway, weight)
+        return self._do_request(location, "POST", body)
+
+    def get_route(self, routes_id):
+        location = 'routes/%s' % routes_id
+        return self._do_request(location, "GET", body)
+
+
+    def list_route(self, router_id):
+        location = 'routers/%s/routes' % router_id
+        return self._do_request(location, "GET")
 
 
 def main():
