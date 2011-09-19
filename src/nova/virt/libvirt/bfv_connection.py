@@ -1,22 +1,4 @@
-# vim: tabstop=4 shiftwidth=4 softtabstop=4
-
-# Copyright 2010 United States Government as represented by the
-# Administrator of the National Aeronautics and Space Administration.
-# All Rights Reserved.
-# Copyright (c) 2010 Citrix Systems, Inc.
-# Copyright (c) 2011 Piston Cloud Computing, Inc
-#
-#    Licensed under the Apache License, Version 2.0 (the "License"); you may
-#    not use this file except in compliance with the License. You may obtain
-#    a copy of the License at
-#
-#         http://www.apache.org/licenses/LICENSE-2.0
-#
-#    Unless required by applicable law or agreed to in writing, software
-#    distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
-#    WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the
-#    License for the specific language governing permissions and limitations
-#    under the License.
+# Copyright (C) 2011 Midokura KK
 
 """
 A connection to a hypervisor through libvirt.
@@ -71,21 +53,15 @@ from nova.virt import disk
 from nova.virt import driver
 from nova.virt import images
 from nova.virt.libvirt import netutils
-
-
-libvirt = None
-libxml2 = None
-Template = None
-
+import nova.virt.libvirt.connection as libvirt_conn
+FLAGS = flags.FLAGS
 
 
 LOG = logging.getLogger('nova.virt.libvirt_conn')
 
-
 def get_connection(read_only=False):
     conn = nova.virt.libvirt.connection.get_connection(read_only)
     return BootFromCDandVolumeLibvirtConnection(read_only)
-
 
 
 def _get_eph_disk(ephemeral):
@@ -93,32 +69,19 @@ def _get_eph_disk(ephemeral):
 
 
 
-import nova.virt.libvirt.connection as libvirt_conn
-
-
-FLAGS = flags.FLAGS
-
-
 class BootFromCDandVolumeLibvirtConnection(libvirt_conn.LibvirtConnection):
 
-
     def __init__(self, read_only):
-        print "--------derived class ----"
         super(BootFromCDandVolumeLibvirtConnection, self).__init__(read_only)
 
-
     def _check_image_type(self, image_ref, type):
-        print "------------------nova_context---"
-        print nova_context
         elevated = nova_context.get_admin_context()
-        print "----------elevated -------------"
-        print dir(elevated)
-        print elevated
-        (image_service, image_id) = nova.image.get_image_service(elevated, image_ref)
+        (image_service, image_id) = \
+		nova.image.get_image_service(elevated, image_ref)
         image = image_service.show(elevated, image_id)
         return True if image['disk_format'] == type else False
 
-
+    # tweek for supporting cdrom and volume as a boot device; ${boot} in tmpl 
     # intentionaly overriding private method to hack around.
     def _prepare_xml_info(self, instance, network_info, rescue,
                           block_device_info=None):
