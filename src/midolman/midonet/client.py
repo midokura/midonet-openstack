@@ -146,9 +146,6 @@ networkAddress": "%s",\
                                        peer_port_address,\
                                        peer_router_id):
 
-#curl -i -X POST -H "HTTP_X_AUTH_TOKEN: 111222333444" -H "Content-Type: application/json" -d '{"networkAddress": "10.0.0.0", "networkLength": 24, "portAddress": "10.0.0.1", "peerPortAddress": "10.0.0.2", "peerRouterId": "321fc574-5244-44a4-bc06-d5068bca7ab8"}' http://localhost:8080/midolmanj-mgmt/v1/routers/588425e9-0ba0-49f0-840d-d567397dab98/ports/link
-
-
         location = 'routers/%s/ports/link' % router_id
         body = \
 '{"networkAddress": "%s",\
