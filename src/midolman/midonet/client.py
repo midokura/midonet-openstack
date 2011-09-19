@@ -160,6 +160,11 @@ networkAddress": "%s",\
         return self._do_request(location, "POST", body)
 
 
+    def get_router_link(self, router_id, peer_router_id):
+        location = 'routers/%s/link' % router_id
+        body = '{"peerRouterId":"%s"}'% peer_router_id
+        return self._do_request(location, "GET", body)
+
     def get_router_port(self, port_id):
         location = 'ports/%s' % port_id
         return self._do_request(location, "GET")
