@@ -168,12 +168,6 @@ networkAddress": "%s",\
         location = 'routers/%s/ports' % router_id
         return self._do_request(location, "GET")
 
-    def update_router_port_peer_id(self, port_id, peer_id):
-        location = 'ports/%s' % port_id
-        body = '{"peerId": "%s"}' % peer_id
-        return self._do_request(location, "PUT", body)
-
-
 
 def main():
 
