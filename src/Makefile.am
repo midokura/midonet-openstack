@@ -9,7 +9,15 @@ nobase_python_PYTHON = \
     midolman/agent/__init__.py \
     midolman/agent/config.py \
     midolman/agent/openvswitch.py \
-    midolman/agent/server.py
+    midolman/agent/server.py \
+    midolman/nova/api/openstack/contrib/networks.py \
+    midolman/nova/api/openstack/contrib/__init__.py \
+    midolman/nova/network/api.py \
+    midolman/nova/network/manager.py \
+    midolman/nova/network/__init__.py \
+    midolman/nova/virt/libvirt/libvirt.xml.template \
+    midolman/nova/virt/libvirt/connection.py
+
 
 # Distribute but don't install docs, etc.
 dist_noinst_DATA =
