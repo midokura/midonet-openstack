@@ -54,16 +54,19 @@ class MidonetManager(NetworkManager):
                                           FLAGS.mido_link_local_port_network_address,
                                           FLAGS.mido_link_peer_port_network_address,
                                           FLAGS.mido_provider_router_id)
+        print 'created tenant router' 
 
         # Create a network in Nova and link it with the tenant router in MidoNet. 
         networks = super(MidonetManager, self).create_networks(context, label, cidr, multi_host, 1,
                         network_size, cidr_v6, gateway_v6, bridge,
                         bridge_interface, dns1, dns2, **kwargs)
+        print 'created network' 
 
         if networks is None or len(networks) == 0:
             return None
         network = networks[0]
 
         # Hack to put uuid inside database
-        api.network_update(context, networks.id, {"uuid": router_id})
+        api.network_update(context, network.id, {"uuid": router_id})
         return network
+

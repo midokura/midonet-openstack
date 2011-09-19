@@ -39,7 +39,7 @@ LOG = logging.getLogger('nova.api.openstack.contrib.network')
 
 def _translate_network_view(network):
     if network:
-        result = {'id': network['uuid'], "cidr": network['netmask'], "bridge": network['bridge'],
+        result = {'id': network['uuid'], "cidr": network['cidr'], "netmask": network['netmask'], "bridge": network['bridge'],
                   "gateway": network['gateway'], "broadcast": network['broadcast'], "dns1": network['dns1'],
                   "vlan": network['vlan'], "vpn_public_address": network['vpn_public_address'],
                   "vpn_public_port": network['vpn_public_port'], "vpn_private_address": network['vpn_private_address'],
