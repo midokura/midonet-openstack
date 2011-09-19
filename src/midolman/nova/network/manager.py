@@ -33,7 +33,7 @@ class MidonetManager(NetworkManager):
 
         mc = midonet.MidonetClient(context.auth_token)
         tenant_id = kwargs['project_id']
-        router_name = kwargs['label']
+        router_name = label
 
         print 'context.auth_token', context.auth_token
         print 'tenant_id', tenant_id 
@@ -58,7 +58,8 @@ class MidonetManager(NetworkManager):
         # Create a network in Nova and link it with the tenant router in MidoNet. 
         networks = super(MidonetManager, self).create_networks(context, label, cidr, multi_host, 1,
                         network_size, cidr_v6, gateway_v6, bridge,
-                        bridge_interface, dns1, dns2, kwargs)
+                        bridge_interface, dns1, dns2, **kwargs)
+
         if networks is None or len(networks) == 0:
             return None
         network = networks[0]
