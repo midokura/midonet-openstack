@@ -21,7 +21,7 @@ flags.DEFINE_string('mido_link_peer_port_network_address',
 
 
 def _extract_id_from_header_location(response):
-    router_id = response['location'].split('/')[-1]
+    return response['location'].split('/')[-1]
 
 class MidonetManager(NetworkManager):
 
