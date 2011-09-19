@@ -1,5 +1,8 @@
 #!/usr/bin/env python
-
+#
+# Copyright (C) 2011 Midokura KK
+#
+# Midonet REST API client
 
 import sys
 import httplib2
@@ -164,6 +167,17 @@ networkAddress": "%s",\
     def list_router_port(self, router_id):
         location = 'routers/%s/ports' % router_id
         return self._do_request(location, "GET")
+
+    # vif
+    def plug_vif(self, port_id, vif_id):
+        location = 'ports/%s/plug' % port_id
+        body = '{"vifId": "%s"}' % vif_id
+        return self._do_request(location, "PUT")
+
+    def unplug_vif(self, port_id, vif_id):
+        location = 'ports/%s/unplug' % port_id
+        body = '{"vifId": "%s"}' % vif_id
+        return self._do_request(location, "PUT")
 
 
 def main():
