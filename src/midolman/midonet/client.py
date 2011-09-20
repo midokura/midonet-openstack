@@ -186,7 +186,7 @@ class MidonetClient:
     # routes
     def create_route(self, router_id, src_network_addr, src_network_length, type_,
                      dst_network_addr, dst_network_length, next_hop_port, next_hop_gateway, weight):
-
+        nextHopAddress = "null" if next_hop_gateway is None else next_hop_gateway
         location = 'routers/%s/routes' % router_id
         data = {"srcNetworkAddr": src_network_addr,
                 "srcNetworkLength": src_network_length,
