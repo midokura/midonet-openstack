@@ -230,34 +230,33 @@ class MidonetClient:
         return self._do_request(location, "PUT", body)
 
     # rules
-    # parameteres ordered as listed in Rule.java in midolmanj-mgmt
     def create_rule(self, chain_id, 
-                    cont_invert=False,
-                    in_ports=None,
-                    inv_in_ports=False,
-                    out_ports=None,
-                    inv_out_ports=False,
+                    cont_invert,
+                    in_ports,
+                    inv_in_ports,
+                    out_ports,
+                    inv_out_ports,
                     nw_tos,
-                    inv_nw_tos=False,
+                    inv_nw_tos,
                     nw_proto,
-                    inv_nw_proto=False,
-                    nw_src_address=None,
+                    inv_nw_proto,
+                    nw_src_address,
                     nw_src_length,
-                    inv_nw_src=False,
+                    inv_nw_src,
                     nw_dst_address,
                     nw_dst_length,
-                    inv_nw_dst=False,
+                    inv_nw_dst,
                     tp_src_start,
                     tp_src_end,
-                    inv_tp_src=False,
-                    tp_dst_start
+                    inv_tp_src,
+                    tp_dst_start,
                     tp_dst_end,
-                    inv_tp_dst=False,
-                    type_=None,
-                    jump_chain_id=None,
-                    jump_chain_name=None,
-                    flow_action=None,
-                    nat_targets=None, 
+                    inv_tp_dst,
+                    type_,
+                    jump_chain_id,
+                    jump_chain_name,
+                    flow_action,
+                    nat_targets, 
                     position ):
 
         location = 'chains/%s/rules' % chain_id
@@ -281,7 +280,7 @@ class MidonetClient:
             "tpSrcStart": tp_src_start,
             "tpSrcEnd": tp_src_end,
             "invTpSrc": inv_tp_src,
-            "tpDstStart": tp_dst_start
+            "tpDstStart": tp_dst_start,
             "tpDstEnd": tp_dst_end,
             "invTpDst": inv_tp_dst,
             "type": type_,
@@ -306,15 +305,22 @@ class MidonetClient:
         return self._do_request(location, "DELETE")
 
 def main():
+    def _process_arg(arg):
+        if arg == "None":
+            return None
+        if all([c.isdigit() for c in arg]):
+            return int(arg) # just assume int
+        else:
+            return arg
+
 
     client = MidonetClient(token = '999888777666')
     # simple repl. note that arg here is going to be a string.
     while True:
         try:
             input = raw_input('midonet_client> ')
-            input = input.split()
+            input = map(_process_arg, input.split())
             method_name, args = input[0], input[1:]
-
             method = getattr(client, method_name)
             r, c = method(*args)
             print "response: ", r
