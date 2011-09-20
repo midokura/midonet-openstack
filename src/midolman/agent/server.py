@@ -76,14 +76,15 @@ class NetAgent(object):
             print "OVS bridge added: %r" % res
             time.sleep(1)
 
+            res = ovs.add_bridge_openflow_controller(bridge_name,
+                Config.openvswitch_controller)
+            print "OVS controller added: %r" % res
+            time.sleep(1)
+
         ext_ids = {Config.midolman_conf_vals.ovs_ext_id_key: port_id}
         res = ovs_conn.add_system_port(bridge_name, tap_if,
                                        external_ids=ext_ids)
         print "OVS port added: %r" % res
-
-        res = ovs.add_bridge_openflow_controller(bridge_name,
-            Config.openvswitch_controller)
-        print "OVS controller added: %r" % res
 
         time.sleep(1)
         ovs_conn.close()

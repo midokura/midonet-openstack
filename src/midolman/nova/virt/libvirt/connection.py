@@ -55,36 +55,33 @@ from nova.virt import images
 from nova.virt.libvirt import netutils
 import nova.virt.libvirt.connection as libvirt_conn
 FLAGS = flags.FLAGS
-
-
+Template = None 
 LOG = logging.getLogger('nova.virt.libvirt_conn')
 
 def get_connection(read_only=False):
     conn = nova.virt.libvirt.connection.get_connection(read_only)
+    _late_load_cheetah()
     return BootFromCDandVolumeLibvirtConnection(read_only)
 
+def _late_load_cheetah():
+    global Template
+    if Template is None:
+        t = __import__('Cheetah.Template', globals(), locals(),
+                       ['Template'], -1)
+        Template = t.Template
 
 def _get_eph_disk(ephemeral):
     return 'disk.eph' + str(ephemeral['num'])
-
-
 
 class BootFromCDandVolumeLibvirtConnection(libvirt_conn.LibvirtConnection):
 
     def __init__(self, read_only):
         super(BootFromCDandVolumeLibvirtConnection, self).__init__(read_only)
 
-    def _check_image_type(self, image_ref, type):
-        elevated = nova_context.get_admin_context()
-        (image_service, image_id) = \
-		nova.image.get_image_service(elevated, image_ref)
-        image = image_service.show(elevated, image_id)
-        return True if image['disk_format'] == type else False
-
     # tweek for supporting cdrom and volume as a boot device; ${boot} in tmpl 
     # intentionaly overriding private method to hack around.
     def _prepare_xml_info(self, instance, network_info, rescue,
-                          block_device_info=None):
+                          block_device_info=None, image_info=None):
         block_device_mapping = driver.block_device_info_get_mapping(
             block_device_info)
 
@@ -123,8 +120,7 @@ class BootFromCDandVolumeLibvirtConnection(libvirt_conn.LibvirtConnection):
                                'device': block_device.strip_dev(
                                    eph['device_name'])})
 
-        if (instance['image_ref'] and
-            self._check_image_type(instance['image_ref'], 'iso')):
+        if (image_info and image_info['disk_format'] == 'iso'):
             boot = 'cdrom'
             self.root_mount_device = '/dev/hdc'
         else:
@@ -196,4 +192,48 @@ class BootFromCDandVolumeLibvirtConnection(libvirt_conn.LibvirtConnection):
             xml_info['disk'] = xml_info['basepath'] + "/disk"
         return xml_info
 
+
+    def to_xml(self, instance, network_info, rescue=False,
+               block_device_info=None, image_info=None):
+        # TODO(termie): cache?
+        LOG.debug(_('instance %s: starting toXML method'), instance['name'])
+        xml_info = self._prepare_xml_info(instance, network_info, rescue,
+                                          block_device_info, image_info)
+        xml = str(Template(self.libvirt_xml, searchList=[xml_info]))
+        LOG.debug(_('instance %s: finished toXML method'), instance['name'])
+        return xml
+
+    @exception.wrap_exception()
+    def spawn(self, context, instance, network_info,
+              block_device_info=None, image_info=None):
+        xml = self.to_xml(instance, network_info, False,
+                          block_device_info=block_device_info,
+                          image_info=image_info)
+        self.firewall_driver.setup_basic_filtering(instance, network_info)
+        self.firewall_driver.prepare_instance_filter(instance, network_info)
+        self._create_image(context, instance, xml, network_info=network_info,
+                           block_device_info=block_device_info)
+
+        domain = self._create_new_domain(xml)
+        LOG.debug(_("instance %s: is running"), instance['name'])
+        self.firewall_driver.apply_instance_filter(instance, network_info)
+
+        def _wait_for_boot():
+            """Called at an interval until the VM is running."""
+            instance_name = instance['name']
+
+            try:
+                state = self.get_info(instance_name)['state']
+            except exception.NotFound:
+                msg = _("During reboot, %s disappeared.") % instance_name
+                LOG.error(msg)
+                raise utils.LoopingCallDone
+
+            if state == power_state.RUNNING:
+                msg = _("Instance %s spawned successfully.") % instance_name
+                LOG.info(msg)
+                raise utils.LoopingCallDone
+
+        timer = utils.LoopingCall(_wait_for_boot)
+        return timer.start(interval=0.5, now=True)
 

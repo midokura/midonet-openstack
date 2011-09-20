@@ -17,6 +17,7 @@
 #    under the License.
 
 from midolman.midonet import client as midonet
+from nova import log as logging
 from nova.network.manager import NetworkManager 
 from nova.network.manager import RPCAllocateFixedIP 
 from nova.network.manager import FloatingIP 
@@ -38,6 +39,8 @@ flags.DEFINE_string('mido_link_local_port_network_address',
 flags.DEFINE_string('mido_link_peer_port_network_address',
                     '10.0.0.2',
                     'Network address for MidoNet logical port peer')
+
+LOG = logging.getLogger('midolmannova.compute.manager')
 
 
 def _extract_id_from_header_location(response):
