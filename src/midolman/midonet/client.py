@@ -122,18 +122,16 @@ class MidonetClient:
         return self._do_request(location, "PUT", body)
 
     # router port
-    def create_router_materialized_port(self, router_id, network_address,\
+    def create_router_port(self, router_id, network_address,\
                                             network_length, port_address,\
                                             local_network_address,\
                                             local_network_length):
 
         location = 'routers/%s/ports' % router_id
-
         body = \
 '{"\
 networkAddress": "%s",\
 "networkLength": %s,\
-"type": "Materialized",\
 "portAddress":"%s",\
 "localNetworkAddress": "%s",\
 "localNetworkLength":%s}' % \
@@ -177,7 +175,7 @@ networkAddress": "%s",\
     def plug_vif(self, port_id, vif_id):
         location = 'ports/%s/plug' % port_id
         body = '{"vifId": "%s"}' % vif_id
-        return self._do_request(location, "PUT")
+        return self._do_request(location, "PUT", body)
 
     def unplug_vif(self, port_id, vif_id):
         location = 'ports/%s/unplug' % port_id
@@ -203,6 +201,25 @@ networkAddress": "%s",\
         location = 'routers/%s/routes' % router_id
         return self._do_request(location, "GET")
 
+    # chains
+    def create_chain(self, router_id, name):
+        location = 'routers/%s/chains' % router_id
+        body = '{"name": "%s"}' % name
+        return self._do_request(location, "POST", body)
+
+    def get_chain(self, chain_id):
+        location = 'chains/%s' % chain_id
+        return self._do_request(location, "GET")
+
+    def list_chain(self, router_id):
+        location = 'routers/%s/chains' % router_id
+        return self._do_request(location, "GET")
+
+    def update_chain(self, chain_id, name):
+        location = 'routers/%s/chains' % router_id
+        body = '{"name": "%s"}' % name
+        return self._do_request(location, "PUT", body)
+        
 
 def main():
 
