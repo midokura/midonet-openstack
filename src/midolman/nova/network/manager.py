@@ -1,5 +1,25 @@
+# vim: tabstop=4 shiftwidth=4 softtabstop=4
+
+# Copyright (C) 2011 Midokura KK
+#
+# All Rights Reserved.
+#
+#    Licensed under the Apache License, Version 2.0 (the "License"); you may
+#    not use this file except in compliance with the License. You may obtain
+#    a copy of the License at
+#
+#         http://www.apache.org/licenses/LICENSE-2.0
+#
+#    Unless required by applicable law or agreed to in writing, software
+#    distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
+#    WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the
+#    License for the specific language governing permissions and limitations
+#    under the License.
+
 from midolman.midonet import client as midonet
 from nova.network.manager import NetworkManager 
+from nova.network.manager import RPCAllocateFixedIP 
+from nova.network.manager import FloatingIP 
 from nova.db import api
 from nova import flags
 
@@ -23,7 +43,7 @@ flags.DEFINE_string('mido_link_peer_port_network_address',
 def _extract_id_from_header_location(response):
     return response['location'].split('/')[-1]
 
-class MidonetManager(NetworkManager):
+class MidonetManager(FloatingIP, RPCAllocateFixedIP, NetworkManager):
 
     def create_network(self, context, label, cidr, multi_host,
                        network_size, cidr_v6, gateway_v6, bridge,
@@ -70,3 +90,18 @@ class MidonetManager(NetworkManager):
         api.network_update(context, network.id, {"uuid": router_id})
         return network
 
+    def get_instance_nw_info(self, context, instance_id,
+                             instance_type_id, host):
+        # Need to set UUID
+        nw_info = super(MidonetManager, self).get_instance_nw_info(context,
+            instance_id, instance_type_id, host)
+        print 'looping network' 
+        for nw in nw_info:
+            nw_dict = nw[0]
+            net = api.network_get(context, nw_dict['id'])
+            print 'loop!' , net['uuid']
+            nw_dict['uuid'] = net['uuid'] 
+        return nw_info
+
+    def _setup_network(self, context, network_ref):
+         pass

@@ -81,6 +81,10 @@ class NetAgent(object):
                                        external_ids=ext_ids)
         print "OVS port added: %r" % res
 
+        res = ovs.add_bridge_openflow_controller(bridge_name,
+            Config.openvswitch_controller)
+        print "OVS controller added: %r" % res
+
         time.sleep(1)
         ovs_conn.close()
         tap.set_if_flags(tap_if, up=True, noarp=True, multicast=False)
