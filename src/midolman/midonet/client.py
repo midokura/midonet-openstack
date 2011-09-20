@@ -290,6 +290,7 @@ class MidonetClient:
             "natTargets": nat_targets, 
             "position": position
             }
+        body = json.dumps(data)
         return self._do_request(location, "POST", body)
 
     def get_rule(self, rule_id):
