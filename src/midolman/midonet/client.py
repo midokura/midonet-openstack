@@ -7,6 +7,7 @@
 import sys
 import httplib2
 import readline
+import json
 
 
 MIDONET_API_SERVER = 'http://localhost:8080'
@@ -128,18 +129,18 @@ class MidonetClient:
                                             local_network_length):
 
         location = 'routers/%s/ports' % router_id
-        body = \
-'{"\
-networkAddress": "%s",\
-"networkLength": %s,\
-"portAddress":"%s",\
-"localNetworkAddress": "%s",\
-"localNetworkLength":%s}' % \
-            (network_address,\
-             network_length,\
-             port_address,\
-             local_network_address,\
-             local_network_length)
+
+        data = {
+            "networkAddress": network_address,
+            "networkLength": network_length,
+            "portAddress": port_address,
+            "localNetworkAddress": local_network_address,
+            "localNetworkLength" : local_network_length
+            }
+        body = json.dumps(data)
+        print "---------------------"
+        print body
+
         return self._do_request(location, "POST", body)
 
     def link_router(self, router_id, network_address,\
@@ -148,13 +149,16 @@ networkAddress": "%s",\
                                        peer_router_id):
 
         location = 'routers/%s/ports/link' % router_id
-        body = \
-'{"networkAddress": "%s",\
-"networkLength": %s,\
-"portAddress":"%s",\
-"peerPortAddress":"%s",\
-"peerRouterId":"%s"}' %\
-                (network_address, network_length, port_address, peer_port_address, peer_router_id)
+
+        data = {
+            "networkAddress": networK_address,
+            "networkLength": network_length,
+            "portAddress": port_address,
+            "peerPortAddress": peer_port_address,
+            "peerRouterId": peer_router_id
+            }
+        
+        body = json.dumps(data)
         return self._do_request(location, "POST", body)
 
 
@@ -187,9 +191,16 @@ networkAddress": "%s",\
                      dst_network_addr, dst_network_length, next_hop_port, next_hop_gateway, weight):
 
         location = 'routers/%s/routes' % router_id
-        body = '{"srcNetworkAddr": "%s", "srcNetworkLength": %s, "type": "%s","dstNetworkAddr": "%s", "dstNetworkLength": %s, "nextHopPort": "%s", "nextHopGateway": "%s", "weight": %s}' % \
-            (src_network_addr, src_network_length, type_, 
-             dst_network_addr, dst_network_length, next_hop_port, next_hop_gateway, weight)
+        data = {"srcNetworkAddr": src_network_addr,
+                "srcNetworkLength": src_network_length,
+                "type": type_,
+                "dstNetworkAddr": dst_network_addr,
+                "destNetworkLength": dst_network_length,
+                "nextHopPort": next_hop_port,
+                "nextHopGateway": next_hop_gateway,
+                "weight": weight}
+
+        body = json.dumps(data)
         return self._do_request(location, "POST", body)
 
     def get_route(self, routes_id):
@@ -224,8 +235,6 @@ networkAddress": "%s",\
 def main():
 
     client = MidonetClient(token = '999888777666')
-#    r, c = b.create('c8854067-4c04-41d6-99cf-4e317e0999af', 'midobridge')
-
     while True:
         try:
             input = raw_input('midonet_client> ')
