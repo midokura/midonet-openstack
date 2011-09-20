@@ -148,13 +148,13 @@ class MidonetClient:
         location = 'routers/%s/ports/link' % router_id
 
         data = {
-            "networkAddress": networK_address,
+            "networkAddress": network_address,
             "networkLength": network_length,
             "portAddress": port_address,
             "peerPortAddress": peer_port_address,
             "peerRouterId": peer_router_id
             }
-        
+
         body = json.dumps(data)
         return self._do_request(location, "POST", body)
 
