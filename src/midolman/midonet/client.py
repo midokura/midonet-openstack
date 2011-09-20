@@ -184,11 +184,11 @@ class MidonetClient:
         return self._do_request(location, "PUT", body)
 
     # routes
-    def create_route(self, router_id, src_network_addr, src_network_length, type_,
-                     dst_network_addr, dst_network_length, next_hop_port, next_hop_gateway, weight):
-        nextHopAddress = "null" if next_hop_gateway is None else next_hop_gateway
-        location = 'routers/%s/routes' % router_id
+    def create_route(self, router_id, src_network_addr, src_network_length,
+                     type_, dst_network_addr, dst_network_length, next_hop_port,
+                     next_hop_gateway, weight):
 
+        location = 'routers/%s/routes' % router_id
         data = {"srcNetworkAddr": src_network_addr,
                 "srcNetworkLength": src_network_length,
                 "type": type_,
@@ -313,9 +313,8 @@ def main():
         else:
             return arg
 
-
     client = MidonetClient(token = '999888777666')
-    # simple repl. note that arg here is going to be a string.
+    # simple repl.
     while True:
         try:
             input = raw_input('midonet_client> ')
