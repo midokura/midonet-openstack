@@ -188,6 +188,7 @@ class MidonetClient:
                      dst_network_addr, dst_network_length, next_hop_port, next_hop_gateway, weight):
         nextHopAddress = "null" if next_hop_gateway is None else next_hop_gateway
         location = 'routers/%s/routes' % router_id
+
         data = {"srcNetworkAddr": src_network_addr,
                 "srcNetworkLength": src_network_length,
                 "type": type_,
@@ -227,11 +228,87 @@ class MidonetClient:
         location = 'routers/%s/chains' % router_id
         body = '{"name": "%s"}' % name
         return self._do_request(location, "PUT", body)
+
+    # rules
+    # parameteres ordered as listed in Rule.java in midolmanj-mgmt
+    def create_rule(self, chain_id, 
+                    cont_invert=False,
+                    in_ports=None,
+                    inv_in_ports=False,
+                    out_ports=None,
+                    inv_out_ports=False,
+                    nw_tos,
+                    inv_nw_tos=False,
+                    nw_proto,
+                    inv_nw_proto=False,
+                    nw_src_address=None,
+                    nw_src_length,
+                    inv_nw_src=False,
+                    nw_dst_address,
+                    nw_dst_length,
+                    inv_nw_dst=False,
+                    tp_src_start,
+                    tp_src_end,
+                    inv_tp_src=False,
+                    tp_dst_start
+                    tp_dst_end,
+                    inv_tp_dst=False,
+                    type_=None,
+                    jump_chain_id=None,
+                    jump_chain_name=None,
+                    flow_action=None,
+                    nat_targets=None, 
+                    position ):
+
+        location = 'chains/%s/rules' % chain_id
         
+        data = {
+            "condInvert": cont_invert,
+            "inPorts": in_ports,
+            "invInPorts": inv_in_ports,
+            "outPorts": out_ports,
+            "invOutPorts":inv_out_ports,
+            "nwTos": nw_tos,
+            "invNwTos": inv_nw_tos,
+            "nwProto": nw_proto,
+            "invNwProto": inv_nw_proto,
+            "nwSrcAddress": nw_src_address,
+            "nwSrcLength": nw_src_length,
+            "invNwSrc":inv_nw_src,
+            "nwDstAddress": nw_dst_address,
+            "nwDstLength": nw_dst_length,
+            "invNwDst": inv_nw_dst,
+            "tpSrcStart": tp_src_start,
+            "tpSrcEnd": tp_src_end,
+            "invTpSrc": inv_tp_src,
+            "tpDstStart": tp_dst_start
+            "tpDstEnd": tp_dst_end,
+            "invTpDst": inv_tp_dst,
+            "type": type_,
+            "jumpChainId": jump_chain_id,
+            "jumpChainName": jump_chain_name,
+            "flowAction": flow_action,
+            "natTargets": nat_targets, 
+            "position": position
+            }
+        return self._do_request(location, "POST", body)
+
+    def get_rule(self, rule_id):
+        location = '/rules/%s' % chain_id
+        return self._do_request(location, "GET")
+
+    def list_rule(self, chain_id):
+        location = 'chains/%s/rules' % chain_id
+        return self._do_request(location, "GET")
+
+    def delete(self, rule_id):
+        location = '/rules/%s' % chain_id
+        return self._do_request(location, "DELETE")
 
 def main():
 
     client = MidonetClient(token = '999888777666')
+    # simple repl. note that arg here is going to be a string.
     while True:
         try:
             input = raw_input('midonet_client> ')
