@@ -138,9 +138,6 @@ class MidonetClient:
             "localNetworkLength" : local_network_length
             }
         body = json.dumps(data)
-        print "---------------------"
-        print body
-
         return self._do_request(location, "POST", body)
 
     def link_router(self, router_id, network_address,\
