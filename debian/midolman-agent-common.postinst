@@ -46,6 +46,10 @@ EOF
     echo "bridge_prefix: $RET" >> $CONFFILE
 
     echo >> $CONFFILE
+    db_get midolman-agent-common/openvswitch-controller
+    echo "controller: $RET" >> $CONFFILE
+
+    echo >> $CONFFILE
     echo "[interface]" >> $CONFFILE
     db_get midolman-agent-common/interface-mtu
     echo "mtu: $RET" >> $CONFFILE

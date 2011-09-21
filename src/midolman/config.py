@@ -42,8 +42,8 @@ _ZK_ROUTING_TABLE_SUFFIX = 'routing_tables'
 _ZK_VRN_SUFFIX = 'vrns'
 
 _DEFAULT_VALUES = {
-    _BRIDGE_MAC_EXPIRE: \
-        ieee_802.MemcachedDynamicFilteringDatabase.DEFAULT_CACHE_TIMEOUT,
+#    _BRIDGE_MAC_EXPIRE: \
+#        ieee_802.MemcachedDynamicFilteringDatabase.DEFAULT_CACHE_TIMEOUT,
     _MC_HOSTS: '127.0.0.1:11211',
     _OPFL_EXPIRE: '15',
     _OPFL_IDLE: '3',

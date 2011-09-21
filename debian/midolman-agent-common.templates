@@ -25,6 +25,12 @@ Default: mbr
 Description: Prefix for the Openvswitch bridge name:
  MidoNet creates OVS bridge with name set to this value as its prefix.
 
+Template: midolman-agent-common/openvswitch-controller
+Type: string
+Default: tcp:127.0.0.1:6633
+Description: Controller socket address: 
+ Openvswitch controller used in MidoNet.
+
 Template: midolman-agent-common/interface-mtu
 Type: string
 Default: 1300
