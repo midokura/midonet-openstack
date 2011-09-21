@@ -20,7 +20,7 @@ _DEFAULT_VALUES = {
     _SERVER_HOST: '0.0.0.0',
     _SERVER_PORT: 8999,
     _MIDOLMAN_CONF: '/etc/midolman.conf',
-    _OPENVSWITCH_BRIDGE_PREFIX: 'midobr',
+    _OPENVSWITCH_BRIDGE_PREFIX: 'mbr',
     _INTERFACE_MTU: 1300  # Temporary hack
 }
 

@@ -21,7 +21,7 @@ Description: Path to the Midolman configuration file:
 
 Template: midolman-agent-common/openvswitch-bridge_prefix
 Type: string
-Default: midobr
+Default: mbr
 Description: Prefix for the Openvswitch bridge name:
  MidoNet creates OVS bridge with name set to this value as its prefix.
 
