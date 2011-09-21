@@ -144,7 +144,9 @@ class BootFromCDandVolumeLibvirtConnection(libvirt_conn.LibvirtConnection):
                     'volumes': block_device_mapping,
                     'use_virtio_for_bridges':
                             FLAGS.libvirt_use_virtio_for_bridges,
-                    'ephemerals': ephemerals}
+                    'ephemerals': ephemerals,
+                    'image_location': 
+                            image_info['location'].replace('file://','')}
 
         root_device_name = driver.block_device_info_get_root(block_device_info)
         if root_device_name:

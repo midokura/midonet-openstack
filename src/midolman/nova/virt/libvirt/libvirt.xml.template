@@ -66,19 +66,20 @@
             <target dev='${disk_prefix}b' bus='${disk_bus}'/>
         </disk>
     #else
-        #if not ($getVar('ebs_root', False))
-            #if $boot == 'cdrom'
-            <disk type='file' device='cdrom'>
-            <driver type='${driver_type}'/>
-            <source file='${basepath}/disk'/>
+        #if $boot == 'cdrom'
+        <disk type='file' device='cdrom'>
+            <source file='${image_location}'/>
             <target dev='hdc' bus='ide'/>
-            #else
-            <disk type='file'>
+            <readonly/>
+        </disk>
+        #end if
+
+        #if not ($getVar('ebs_root', False))
+           <disk type='file'>
                 <driver type='${driver_type}'/>
                 <source file='${basepath}/disk'/>
                 <target dev='${root_device}' bus='${disk_bus}'/>
             </disk>
-            #end if
         #end if
         #if $getVar('local_device', False)
             <disk type='file'>
