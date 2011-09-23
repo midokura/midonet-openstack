@@ -45,7 +45,7 @@ flags.DEFINE_integer('mido_api_port', 80, 'Port of the MidoNet API server')
 flags.DEFINE_string('mido_api_app', 'midolmanj-mgmt',
                     'App name of the API server.')
 
-LOG = logging.getLogger('midolmannova.compute.manager')
+LOG = logging.getLogger('midolman.nova.network.manager')
 
 
 def _extract_id_from_header_location(response):
@@ -58,6 +58,15 @@ class MidonetManager(FloatingIP, RPCAllocateFixedIP, NetworkManager):
                        bridge_interface, dns1=None, dns2=None, **kwargs):
         print "-------------------Midonet Manager. create_networks-------"
         #PROVIDER_ROUTER_ID = '2e180574-6e14-4c03-922f-d811cfe83d68'
+
+        # Create a network in Nova and link it with the tenant router in MidoNet. 
+        networks = super(MidonetManager, self).create_networks(context, label, cidr, multi_host, 1,
+                        network_size, cidr_v6, gateway_v6, bridge,
+                        bridge_interface, dns1, dns2, **kwargs)
+        if networks is None or len(networks) == 0:
+            return None
+        network = networks[0]
+        print 'created network', network 
 
         mc = midonet.MidonetClient(context.auth_token, FLAGS.mido_api_host,
                                    FLAGS.mido_api_port, FLAGS.mido_api_app)
@@ -85,15 +94,10 @@ class MidonetManager(FloatingIP, RPCAllocateFixedIP, NetworkManager):
                                           FLAGS.mido_provider_router_id)
         print 'created tenant router' 
 
-        # Create a network in Nova and link it with the tenant router in MidoNet. 
-        networks = super(MidonetManager, self).create_networks(context, label, cidr, multi_host, 1,
-                        network_size, cidr_v6, gateway_v6, bridge,
-                        bridge_interface, dns1, dns2, **kwargs)
-        print 'created network' 
-
-        if networks is None or len(networks) == 0:
-            return None
-        network = networks[0]
+        # Add a default route to the provider router.
+        response, content = mc.create_route(router_id, '0.0.0.0', 0, 'Normal',
+                                            '0.0.0.0', 0, content['peerPortId'],
+                                            None, 100);
 
         # Hack to put uuid inside database
         api.network_update(context, network.id, {"uuid": router_id})
@@ -104,11 +108,9 @@ class MidonetManager(FloatingIP, RPCAllocateFixedIP, NetworkManager):
         # Need to set UUID
         nw_info = super(MidonetManager, self).get_instance_nw_info(context,
             instance_id, instance_type_id, host)
-        print 'looping network' 
         for nw in nw_info:
             nw_dict = nw[0]
             net = api.network_get(context, nw_dict['id'])
-            print 'loop!' , net['uuid']
             nw_dict['uuid'] = net['uuid'] 
         return nw_info
 

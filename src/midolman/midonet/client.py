@@ -32,7 +32,14 @@ class MidonetClient:
         "Content-Type": "application/json",
         "HTTP_X_AUTH_TOKEN": self.token} 
         )
-        return response, content 
+
+        try:
+            resp = json.loads(content)
+        except:
+            # FIXME: Fix this.  Just for now, we don't handle error message well.
+            resp = None
+
+        return response, resp 
 
     # tenants
     def create_tenant(self, uuid=None):
@@ -195,7 +202,7 @@ class MidonetClient:
                 "srcNetworkLength": src_network_length,
                 "type": type_,
                 "dstNetworkAddr": dst_network_addr,
-                "destNetworkLength": dst_network_length,
+                "dstNetworkLength": dst_network_length,
                 "nextHopPort": next_hop_port,
                 "nextHopGateway": next_hop_gateway,
                 "weight": weight}
