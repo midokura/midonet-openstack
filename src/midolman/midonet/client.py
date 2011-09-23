@@ -10,17 +10,19 @@ import readline
 import json
 
 
-MIDONET_API_SERVER = 'http://localhost:8080'
-
 class MidonetClient:
 
-    def __init__(self, token):
+    def __init__(self, token, host='127.0.0.1', port=8080, app='midolmanj-mgmt'):
         self.h = httplib2.Http()
         self.token = token
+        self.host = host
+        self.port = port
+        self.app = app
 
     def _do_request(self, location, method, body='{}'):
 
-        url = MIDONET_API_SERVER + '/midolmanj-mgmt/v1/%s' % location
+        url = "http://%s:%d/%s/v1/%s" % (self.host, self.port, self.app, location)
+        #url = MIDONET_API_SERVER + '/midolmanj-mgmt/v1/%s' % location
         print "-------------------"
         print "URL: ", url
         print "method: ", method
@@ -145,7 +147,7 @@ class MidonetClient:
                                        peer_port_address,\
                                        peer_router_id):
 
-        location = 'routers/%s/ports/link' % router_id
+        location = 'routers/%s/routers' % router_id
 
         data = {
             "networkAddress": network_address,

@@ -67,6 +67,38 @@ def send_data_over_tcp(data):
     sock.close()
     return result
 
+def _create_tap_if(mac_address):
+    uid,gid = get_pwd_id(FLAGS.mido_libvirt_user)
+    res = send_data_over_tcp({'action': 'create_tap',
+                              'name': FLAGS.mido_tap_format,
+                              'uid': uid,
+                              'gid': gid,
+                              'mac_address': mac_address})
+    res_dict = json.loads(res)
+    if res_dict['ret_code']:
+        raise ValueError('create_tap did not return valid value.')
+    return res_dict['name']
+
+def _create_ovs_port(port_id, tap_name):
+    # Create a new OVS port and set its external ID to the ZK port.
+    # This call should also create a bridge if it doesn't exist yet.
+    res = send_data_over_tcp({'action': 'create_port',
+                              'port_id': port_id,
+                              'if_name': tap_name, 
+                              'external_id': FLAGS.mido_router_network_id})
+    res_dict = json.loads(res)
+    if res_dict['ret_code']:
+        raise ValueError('create_port did not return valid value.')
+    return res_dict
+
+def _activate_tap_if(tap_name):
+    res = send_data_over_tcp({'action': 'activate_tap',
+                              'if_name': tap_name})
+    res_dict = json.loads(res)
+    if res_dict['ret_code']:
+        raise ValueError('activate_port did not return valid value.')
+    return res_dict
+
 def _extract_id_from_header_location(response):
     return response['location'].split('/')[-1]
 
@@ -75,46 +107,45 @@ class MidoNetVifDriver(VIFDriver):
 
     def plug(self, instance, network, mapping):
 
-        router_id = network['uuid']
-        network_address, network_len = network['cidr'].split('/')
-        gateway = mapping['gateway']
-        local_network_address = mapping['ips'][0]['ip']
         mac_address = mapping['mac']
-        vif_id = mapping['vif_uuid']
+        router_id = network['uuid']
 
-        mc = client.MidonetClient(FLAGS.mido_admin_token)
+        # Create a tap interface
+        tap_name = _create_tap_if(mac_address)
 
-        # Create a materialized port on the router.
-        response, content = mc.create_router_port(router_id,
-            network_address, network_len, gateway, local_network_address, 32)
-        port_id = _extract_id_from_header_location(response)
+        if not router_id is None:
+            network_address, network_len = network['cidr'].split('/')
+            gateway = mapping['gateway']
+            local_network_address = mapping['ips'][0]['ip']
+            vif_id = mapping['vif_uuid']
+    
+            mc = client.MidonetClient(FLAGS.mido_admin_token,
+                                      FLAGS.mido_api_host,
+                                      FLAGS.mido_api_port,
+                                      FLAGS.mido_api_app)
+    
+            # Create a materialized port on the router.
+            response, content = mc.create_router_port(router_id,
+                network_address, network_len, gateway, local_network_address, 32)
+            port_id = _extract_id_from_header_location(response)
+    
+            # Set a route so that the fixed IP is routed to this port.
+            response, content = mc.create_route(router_id, '0.0.0.0', 0, 'Normal',
+                                                local_network_address, 32, port_id,
+                                                None, 100);
+    
+            # Plug in the VIF into the port
+            response, content = mc.plug_vif(port_id, vif_id)
 
-        # Set a route so that the fixed IP is routed to this port.
-        response, content = mc.create_route(router_id, '0.0.0.0', 0, 'Normal',
-                                            local_network_address, 32, port_id,
-                                            None, 100);
+            # Create an OVS port.
+            res = _create_ovs_port(port_id, tap_name)
 
-        # Plug in the VIF into the port
-        response, content = mc.plug_vif(port_id, vif_id)
-
-        # Create a new OVS port and set its external ID to the ZK port.
-        # This call should also create a bridge if it doesn't exist yet.
-        uid,gid = get_pwd_id(FLAGS.mido_libvirt_user)
-        res = send_data_over_tcp({'action': 'create_port',
-                                  'port_id': port_id,
-                                  'name': FLAGS.mido_tap_format,
-                                  'external_id': FLAGS.mido_router_network_id,
-                                  'uid': uid,
-                                  'gid': gid,
-                                  'mac_address': mac_address})
-
-        res_dict = json.loads(res)
-        if res_dict['ret_code']:
-            raise ValueError('create_port did not return valid value.')
+        # Activate the tap.
+        _activate_tap_if(tap_name)
 
         return {
-            'name': res_dict['name'],
-            'mac_address': mapping['mac'],
+            'name': tap_name,
+            'mac_address': mac_address,
             'script': ''}
 
 

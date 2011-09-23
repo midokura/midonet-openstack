@@ -24,19 +24,16 @@ def _get_random_bridge_name():
     A randomly generated bridge name.
     """
     return "%s%d" % (Config.openvswitch_bridge_prefix,
-                     random.randint(1, 9999999999))
+                     random.randint(1, 99999))
 
 class NetAgent(object):
     """Sets up local network resources.
     """
 
-    def create_port(self, data):
-        """Add an OVS port and set port_id as its external ID.
+    def create_tap(self, data):
+        """Add a tap interface on the host.
 
-        Args:
-           port_id: Port ID to set as the external ID of the OVS port.
            name: Interface name to create.
-           external_id: External ID for the device.
            uid: UID of the tap interface
            gid: GID of the tap interface
            mac_address: MAC of the tap interface
@@ -44,22 +41,46 @@ class NetAgent(object):
         Returns:
             The name of the interface created.
         """
-        if not 'external_id' in data or not data['external_id']:
-            raise ValueError("External ID is missing or invalid.")
-        external_id = str(data['external_id'])
-
         if not 'name' in data or not data['name']:
             raise ValueError("Interface name is missing or invalid.")
         name = str(data['name'])
 
-        if not 'port_id' in data or not data['port_id']:
-            raise ValueError("Port ID is missing or invalid.")
-        port_id = str(data['port_id'])
         tap_if = tap.create_persistent_tap_if(name,
                                               owner=data.get('uid'),
                                               group=data.get('gid'),
                                               mac=data.get('mac_address'))
         print "Tap created: %r" % tap_if
+        # HACK! Set the MTU to 1300.
+        os.system("ip link set %s mtu %d" % (tap_if, Config.interface_mtu))
+        return dict(ret_code=_RET_CODE_SUCCESS, name=tap_if)
+
+    def activate_tap(self, data):
+        if not 'if_name' in data or not data['if_name']:
+            raise ValueError("Interface name is missing or invalid.")
+        if_name = str(data['if_name'])
+        tap.set_if_flags(if_name, up=True, noarp=True, multicast=False)
+        return dict(ret_code=_RET_CODE_SUCCESS)
+
+    def create_port(self, data):
+        """Add an OVS port and set port_id as its external ID.
+
+        Args:
+           port_id: Port ID to set as the external ID of the OVS port.
+           if_name: Interface name to map to OVS port.
+           external_id: External ID for the device.
+
+        """
+        if not 'external_id' in data or not data['external_id']:
+            raise ValueError("External ID is missing or invalid.")
+        external_id = str(data['external_id'])
+
+        if not 'if_name' in data or not data['if_name']:
+            raise ValueError("Interface name is missing or invalid.")
+        if_name = str(data['if_name'])
+
+        if not 'port_id' in data or not data['port_id']:
+            raise ValueError("Port ID is missing or invalid.")
+        port_id = str(data['port_id'])
 
         ovs_conn = OvsConn.get_connection()
         ovs_bridges = ovs_conn.get_bridge_names_by_external_id(
@@ -76,23 +97,20 @@ class NetAgent(object):
             print "OVS bridge added: %r" % res
             time.sleep(1)
 
-            res = ovs.add_bridge_openflow_controller(bridge_name,
+            res = ovs_conn.add_bridge_openflow_controller(bridge_name,
                 Config.openvswitch_controller)
             print "OVS controller added: %r" % res
             time.sleep(1)
 
         ext_ids = {Config.midolman_conf_vals.ovs_ext_id_key: port_id}
-        res = ovs_conn.add_system_port(bridge_name, tap_if,
+        res = ovs_conn.add_system_port(bridge_name, if_name,
                                        external_ids=ext_ids)
         print "OVS port added: %r" % res
 
         time.sleep(1)
         ovs_conn.close()
-        tap.set_if_flags(tap_if, up=True, noarp=True, multicast=False)
 
-        # HACK! Set the MTU to 1300.
-        os.system("ip link set %s mtu %d" % (tap_if, Config.interface_mtu))
-        return dict(ret_code=_RET_CODE_SUCCESS, name=tap_if)
+        return dict(ret_code=_RET_CODE_SUCCESS)
 
     def delete_port(self, data):
         """ Delete an OVS port

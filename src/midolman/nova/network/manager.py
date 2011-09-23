@@ -26,7 +26,7 @@ from nova import flags
 
 FLAGS = flags.FLAGS
 flags.DEFINE_string('mido_provider_router_id',
-                    'bb150806-f7cf-4aa3-9438-dccb58c86cc6',
+                    '3cc61b4a-5845-4c9a-bd5c-2f7851b72f66',
                     'UUID of the provider router in MidoNet')
 flags.DEFINE_string('mido_link_port_network_address',
                     '10.0.0.0',
@@ -39,6 +39,11 @@ flags.DEFINE_string('mido_link_local_port_network_address',
 flags.DEFINE_string('mido_link_peer_port_network_address',
                     '10.0.0.2',
                     'Network address for MidoNet logical port peer')
+flags.DEFINE_string('mido_api_host', '127.0.0.1',
+                    'API host of MidoNet')
+flags.DEFINE_integer('mido_api_port', 80, 'Port of the MidoNet API server')
+flags.DEFINE_string('mido_api_app', 'midolmanj-mgmt',
+                    'App name of the API server.')
 
 LOG = logging.getLogger('midolmannova.compute.manager')
 
@@ -54,7 +59,8 @@ class MidonetManager(FloatingIP, RPCAllocateFixedIP, NetworkManager):
         print "-------------------Midonet Manager. create_networks-------"
         #PROVIDER_ROUTER_ID = '2e180574-6e14-4c03-922f-d811cfe83d68'
 
-        mc = midonet.MidonetClient(context.auth_token)
+        mc = midonet.MidonetClient(context.auth_token, FLAGS.mido_api_host,
+                                   FLAGS.mido_api_port, FLAGS.mido_api_app)
         tenant_id = kwargs['project_id']
         router_name = label
 
