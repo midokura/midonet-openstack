@@ -2,9 +2,7 @@
 
 """Handles all requests relating to instances (guest vms)."""
 
-from nova import exception
 from nova import flags
-from nova import log as logging
 from nova import rpc
 from nova import network
 

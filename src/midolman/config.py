@@ -250,16 +250,16 @@ def get_conf_vals_from_files(files):
     config_parser.read(files)
     return ConfVals(config_parser)
 
-def get_conf_vals_from_file(file):
+def get_conf_vals_from_file(conf_file):
     """Get ConfVal object from a file.
 
     Args:
-       file: Config file to load from.
+       conf_file: Config file to load from.
 
     Returns:
        ConfVals object.
     """
-    return get_conf_vals_from_files([file])
+    return get_conf_vals_from_files([conf_file])
 
 def get_conf_vals_from_string(config_str):
     """Returns ConfVals object constructed from a string passed in.

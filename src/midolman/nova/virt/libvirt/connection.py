@@ -19,47 +19,26 @@ Supports KVM, LXC, QEMU, UML, and XEN.
 
 """
 
-import hashlib
-import functools
-import multiprocessing
-import netaddr
 import os
-import random
-import re
-import shutil
-import sys
-import tempfile
-import time
-import uuid
-from xml.dom import minidom
-from xml.etree import ElementTree
 
-from eventlet import greenthread
-from eventlet import tpool
-
+import nova.virt.libvirt.connection
 from nova import block_device
 from nova import context as nova_context
 from nova import db
 from nova import exception
 from nova import flags
-import nova.image
 from nova import log as logging
 from nova import utils
-from nova import vnc
-from nova.auth import manager
 from nova.compute import instance_types
 from nova.compute import power_state
-from nova.virt import disk
 from nova.virt import driver
-from nova.virt import images
-from nova.virt.libvirt import netutils
 import nova.virt.libvirt.connection as libvirt_conn
 FLAGS = flags.FLAGS
 Template = None 
 LOG = logging.getLogger('nova.virt.libvirt_conn')
 
 def get_connection(read_only=False):
-    conn = nova.virt.libvirt.connection.get_connection(read_only)
+    _conn = nova.virt.libvirt.connection.get_connection(read_only)
     _late_load_cheetah()
     return BootFromCDandVolumeLibvirtConnection(read_only)
 
@@ -146,7 +125,7 @@ class BootFromCDandVolumeLibvirtConnection(libvirt_conn.LibvirtConnection):
                             FLAGS.libvirt_use_virtio_for_bridges,
                     'ephemerals': ephemerals,
                     'image_location': 
-                            image_info['location'].replace('file://','')}
+                            image_info['location'].replace('file://', '')}
 
         root_device_name = driver.block_device_info_get_root(block_device_info)
         if root_device_name:
@@ -177,7 +156,6 @@ class BootFromCDandVolumeLibvirtConnection(libvirt_conn.LibvirtConnection):
                 nova_context.get_admin_context(), instance['id'],
                 {'default_swap_device': '/dev/' + self.default_swap_device})
 
-        config_drive = False
         if instance.get('config_drive') or instance.get('config_drive_id'):
             xml_info['config_drive'] = xml_info['basepath'] + "/disk.config"
 
@@ -216,7 +194,7 @@ class BootFromCDandVolumeLibvirtConnection(libvirt_conn.LibvirtConnection):
         self._create_image(context, instance, xml, network_info=network_info,
                            block_device_info=block_device_info)
 
-        domain = self._create_new_domain(xml)
+        _domain = self._create_new_domain(xml)
         LOG.debug(_("instance %s: is running"), instance['name'])
         self.firewall_driver.apply_instance_filter(instance, network_info)
 

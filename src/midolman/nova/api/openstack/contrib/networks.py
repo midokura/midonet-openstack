@@ -19,16 +19,10 @@ import webob
 from webob import exc
 from nova import utils
 
-from nova import exception
 from nova import flags
 from nova import log as logging
-from nova import network
-from nova import rpc
-from nova.api.openstack import faults
 from nova.api.openstack import extensions
 from nova.api.openstack import wsgi
-
-import sys
 
 FLAGS = flags.FLAGS
 flags.DEFINE_string('network_api', 'api.MidoAPI',
@@ -69,8 +63,8 @@ class NetworkController(object):
     """The Network API controller for the OpenStack API."""
 
     def __init__(self):
-         self.network_api = utils.import_object(FLAGS.network_api)
-         super(NetworkController, self).__init__()
+        self.network_api = utils.import_object(FLAGS.network_api)
+        super(NetworkController, self).__init__()
 
     def create(self, req, body=None):
         if not body:
@@ -84,13 +78,13 @@ class NetworkController(object):
         net = self.network_api.create_network(context, **network_dict)
         return _translate_network_view(net)
 
-    def show(self, req, id):
+    def show(self, req, networkId):
         context = req.environ['nova.context']
-        network = self.network_api.get_network(context, id)
+        network = self.network_api.get_network(context, networkId)
         return _translate_network_view(network)
 
-    def delete(self, req, id):
-        context = req.environ['nova.context']
+    def delete(self, req, networkId):
+        _context = req.environ['nova.context']
 
         return webob.exc.HTTPNotImplemented()
 

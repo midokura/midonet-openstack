@@ -15,12 +15,14 @@ _SERVER_PORT = 'port'
 _MIDOLMAN_CONF = 'conf'
 _OPENVSWITCH_BRIDGE_PREFIX = 'bridge_prefix'
 _INTERFACE_MTU = 'mtu'
+_OPENVSWITCH_CONTROLLER = 'controller'
 
 _DEFAULT_VALUES = {
     _SERVER_HOST: '0.0.0.0',
     _SERVER_PORT: 8999,
     _MIDOLMAN_CONF: '/etc/midolman.conf',
     _OPENVSWITCH_BRIDGE_PREFIX: 'mbr',
+    _OPENVSWITCH_CONTROLLER: 'unix:/var/run/openvswitch/db.sock',
     _INTERFACE_MTU: 1300  # Temporary hack
 }
 
@@ -77,6 +79,13 @@ class AgentConfig(object):
         return self._parser.get(_OPENVSWITCH_SECTION,
                                 _OPENVSWITCH_BRIDGE_PREFIX)
 
+    @property
+    def openvswitch_controller(self):
+        """Prefix of Openvswitch controller.
+        """
+        return self._parser.get(_OPENVSWITCH_SECTION,
+                                _OPENVSWITCH_CONTROLLER)
+        
     @property
     def interface_mtu(self):
         """MTU of the interface.

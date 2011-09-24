@@ -16,32 +16,15 @@
 #    License for the specific language governing permissions and limitations
 #    under the License.
 
-import os
-import socket
-import sys
-import tempfile
-import time
-import functools
 
-from eventlet import greenthread
-
-import nova.context
-from nova import block_device
 from nova import exception
 from nova import flags
 import nova.image
 from nova import log as logging
-from nova import manager
-from nova import network
-from nova import rpc
 from nova import utils
-from nova import volume
-from nova.compute import power_state
 from nova.compute import task_states
 from nova.compute import vm_states
 from nova.notifier import api as notifier
-from nova.compute.utils import terminate_volumes
-from nova.virt import driver
 from nova.compute.manager import ComputeManager
 
 LOG = logging.getLogger('midolman.nova.compute.manager')

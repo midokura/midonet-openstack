@@ -53,7 +53,7 @@ def get_pwd_id(name):
         p = pwd.getpwnam(name)
         return (p.pw_uid, p.pw_gid)
     except KeyError:
-        LOG.exception('Attempted to get UID/GID of non-existent user: %s' %
+        LOG.exception('Attempted to get UID/GID of non-existent user: %s' % 
                       name)
         return (None, None)
 
@@ -68,7 +68,7 @@ def send_data_over_tcp(data):
     return result
 
 def _create_tap_if(mac_address):
-    uid,gid = get_pwd_id(FLAGS.mido_libvirt_user)
+    uid, gid = get_pwd_id(FLAGS.mido_libvirt_user)
     res = send_data_over_tcp({'action': 'create_tap',
                               'name': FLAGS.mido_tap_format,
                               'uid': uid,
@@ -84,7 +84,7 @@ def _create_ovs_port(port_id, tap_name):
     # This call should also create a bridge if it doesn't exist yet.
     res = send_data_over_tcp({'action': 'create_port',
                               'port_id': port_id,
-                              'if_name': tap_name, 
+                              'if_name': tap_name,
                               'external_id': FLAGS.mido_router_network_id})
     res_dict = json.loads(res)
     if res_dict['ret_code']:
@@ -125,20 +125,20 @@ class MidoNetVifDriver(VIFDriver):
                                       FLAGS.mido_api_app)
     
             # Create a materialized port on the router.
-            response, content = mc.create_router_port(router_id,
+            response, _content = mc.create_router_port(router_id,
                 network_address, network_len, gateway, local_network_address, 32)
             port_id = _extract_id_from_header_location(response)
     
             # Set a route so that the fixed IP is routed to this port.
-            response, content = mc.create_route(router_id, '0.0.0.0', 0, 'Normal',
+            response, _content = mc.create_route(router_id, '0.0.0.0', 0, 'Normal',
                                                 local_network_address, 32, port_id,
                                                 None, 100);
     
             # Plug in the VIF into the port
-            response, content = mc.plug_vif(port_id, vif_id)
+            response, _content = mc.plug_vif(port_id, vif_id)
 
             # Create an OVS port.
-            res = _create_ovs_port(port_id, tap_name)
+            _res = _create_ovs_port(port_id, tap_name)
 
         # Activate the tap.
         _activate_tap_if(tap_name)

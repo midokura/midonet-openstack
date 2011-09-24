@@ -78,15 +78,15 @@ class MidonetManager(FloatingIP, RPCAllocateFixedIP, NetworkManager):
         print 'router_name', router_name 
 
         # Create the tenant.  Swallow any error here.(YUCK!)
-        response, content = mc.create_tenant(tenant_id)
+        _response, _content = mc.create_tenant(tenant_id)
 
         # Create a router for this tenant.
-        response, content= mc.create_router(tenant_id, router_name)
+        response, _content = mc.create_router(tenant_id, router_name)
         router_id = _extract_id_from_header_location(response)
         print 'router_id', router_id 
 
         # Link this router to the provider router via logical ports.
-        response, content= mc.link_router(router_id,
+        response, content = mc.link_router(router_id,
                                           FLAGS.mido_link_port_network_address,
                                           FLAGS.mido_link_port_network_len,
                                           FLAGS.mido_link_local_port_network_address,
@@ -115,4 +115,4 @@ class MidonetManager(FloatingIP, RPCAllocateFixedIP, NetworkManager):
         return nw_info
 
     def _setup_network(self, context, network_ref):
-         pass
+        pass
