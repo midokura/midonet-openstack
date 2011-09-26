@@ -20,3 +20,16 @@ Depends: ${misc:Depends}, ${python:Depends}, python-openvswitch
 Description: OpenStack plugin for Midolman.
  Midolman implements OpenStack Nova's network API to serve as its network
  service provider.
+
+Package: midolman-agent-common
+Architecture: any
+Depends: ${misc:Depends}
+Description: configuration(dependency package) for the Midolman agent.
+ Midolman agent allows full control of Midolman agents servers.
+
+Package: midolman-agent-bin
+Architecture: all
+Depends: ${misc:Depends}, ${python:Depends}, python-midolman-nova
+Description: Net agent service scripts for Midolman.
+ Midonet agent service that performs local network setups and teardowns.
+
