@@ -17,74 +17,49 @@
 
 import webob
 from webob import exc
-from nova import utils
 from nova import db
 
-from nova import flags
 from nova import log as logging
 from nova.api.openstack import extensions
 from nova.api.openstack import wsgi
 import netaddr
 
-FLAGS = flags.FLAGS
-#flags.DEFINE_string('network_api', 'api.MidoAPI',
-#                    'Nova netowrk API for MidoNet')
 
-LOG = logging.getLogger('nova.api.openstack.contrib.floating_ips')
+LOG = logging.getLogger('nova.api.openstack.contrib.mido_floating_ips')
 
-
-
-def _get_metadata():
-    metadata = {
-        "attributes": {
-            "floating_ip": [
-                "id",
-                "ip",
-                "instance_id",
-                "fixed_ip",
-                ]}}
-
-
-    return metadata
 
 class MidoFloatingIPController(object):
-    """The Network API controller for the OpenStack API."""
+    """The Midonet Floating IP  API controller"""
 
     def __init__(self):
-        self.network_api = utils.import_object(FLAGS.network_api)
         super(MidoFloatingIPController, self).__init__()
 
     def create(self, req, body=None):
         if not body:
             raise exc.HTTPUnprocessableEntity()
-        if not 'range' in body:
+        if not 'cidr' in body:
             raise exc.HTTPUnprocessableEntity()
 
         context = req.environ['nova.context']
-        range_ = body['range']
+        cidr = body['cidr']
 
-        for address in netaddr.IPNetwork(range_):
-            print address
+        for address in netaddr.IPNetwork(cidr):
             db.floating_ip_create(context,
                                   {'address': str(address)})
-        return {"create":"done"}
 
-
-    def delete(self, req, body=None):
-        print " DELETE ", req, body
+    def delete_cidr(self, req, body=None):
         if not body:
             raise exc.HTTPUnprocessableEntity()
-        if not 'range' in body:
+        if not 'cidr' in body:
             raise exc.HTTPUnprocessableEntity()
 
         context = req.environ['nova.context']
-        range_ = body['range']
+        cidr = body['cidr']
 
 
-        for address in netaddr.IPNetwork(range_):
+        for address in netaddr.IPNetwork(cidr):
             db.floating_ip_destroy(context,
                                    str(address))
-        return {"delete": "done"}
 
 
 class Mido_floating_ips(extensions.ExtensionDescriptor):
@@ -107,10 +82,10 @@ class Mido_floating_ips(extensions.ExtensionDescriptor):
         return "2011-09-26T00:00:00+00:00"
 
     def get_resources(self):
-        print "-------------------->",self.__class__
         resources = []
 
-        metadata = _get_metadata()
+        #metadata = _get_metadata()
+        metadata = {'attributes':{}}
         body_serializers = {
             'application/xml': wsgi.XMLDictSerializer(metadata=metadata,
                                                       xmlns=wsgi.XMLNS_V11)}
@@ -118,7 +93,8 @@ class Mido_floating_ips(extensions.ExtensionDescriptor):
         res = extensions.ResourceExtension(
             'mido-floating-ips',
             controller=MidoFloatingIPController(),
-            serializer=serializer)
+            serializer=serializer,
+            collection_actions={'delete_cidr': 'POST'})
         resources.append(res)
 
         return resources
