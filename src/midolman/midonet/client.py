@@ -182,15 +182,19 @@ class MidonetClient:
         return self._do_request(location, "GET")
 
     # vif
-    def plug_vif(self, port_id, vif_id):
-        location = 'ports/%s/plug' % port_id
-        body = '{"vifId": "%s"}' % vif_id
-        return self._do_request(location, "PUT", body)
+    def create_vif(self, vif_id, port_id):
+        location = 'vifs'
+        body = '{"portId": "%s","id": "%s" }' % (port_id, vif_id)
+        return self._do_request(location, "POST", body)
 
-    def unplug_vif(self, port_id, vif_id):
-        location = 'ports/%s/unplug' % port_id
-        body = '{"vifId": "%s"}' % vif_id
-        return self._do_request(location, "PUT", body)
+    def get_vif(self, vif_id):
+        location = 'vifs/%s' % vif_id
+        return self._do_request(location, "GET")
+
+
+    def delete_vif(self, vif_id):
+        location = 'vifs/%s' % port_id
+        return self._do_request(location, "DELETE")
 
     # routes
     def create_route(self, router_id, src_network_addr, src_network_length,
