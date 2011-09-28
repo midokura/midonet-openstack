@@ -33,6 +33,9 @@ from nova.compute import instance_types
 from nova.compute import power_state
 from nova.virt import driver
 import nova.virt.libvirt.connection as libvirt_conn
+
+from midolman.nova import flags as mido_flags
+
 FLAGS = flags.FLAGS
 Template = None 
 LOG = logging.getLogger('nova.virt.libvirt_conn')

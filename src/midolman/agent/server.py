@@ -112,8 +112,8 @@ class NetAgent(object):
 
         return dict(ret_code=_RET_CODE_SUCCESS)
 
-    def delete_port(self, data):
-        """ Delete an OVS port
+    def delete_tap(self, data):
+        """ Delete a tap interface
 
         Args:
             data: Dictionary of inputs.  The dictionary should contain:
@@ -125,16 +125,35 @@ class NetAgent(object):
         if not 'name' in data or not data['name']:
             raise ValueError("Interface name is missing or invalid.")
         name = str(data['name'])
-
-        # OVS connection opened everytime because there were
-        # errors when the connection was kept open.  Investigate.
-        ovs_conn = OvsConn.get_connection()
-        ovs_conn.del_port(name)
-        time.sleep(1)
-        ovs_conn.close()
-
         tap.destroy_persistent_tap_if(name)
         return dict(ret_code=_RET_CODE_SUCCESS)
+
+    def delete_port(self, data):
+        """ Delete an OVS port
+
+        Args:
+            data: Dictionary of inputs.  The dictionary should contain:
+                'port_id': Port ID
+
+        Returns:
+            True if successful.
+        """
+        if not 'port_id' in data or not data['port_id']:
+            raise ValueError("Port ID is missing or invalid.")
+        port_id = str(data['port_id'])
+
+        ovs_conn = OvsConn.get_connection()
+        ovs_ports = ovs_conn.get_port_names_by_external_id(
+                Config.midolman_conf_vals.ovs_ext_id_key, port_id)
+        ova_port = None
+        if ovs_ports:
+            ovs_conn = OvsConn.get_connection()
+            ovs_port = ovs_ports[0]
+            ovs_conn.del_port(ovs_port)
+            time.sleep(1)
+            ovs_conn.close()
+
+        return dict(ret_code=_RET_CODE_SUCCESS, name=ovs_port)
 
     def delete_bridge(self, data):
         """Deletes OVS bridge.

@@ -26,26 +26,19 @@ from midolman.midonet import client
 from nova import flags
 from nova import log as logging
 from nova.virt.vif import VIFDriver
+from midolman.nova import flags as mido_flags
 
 _BUFFSIZE = 1024
 
+FLAGS = flags.FLAGS
 LOG = logging.getLogger('midolman.nova.virt.libvirt.vif')
 
-FLAGS = flags.FLAGS
-flags.DEFINE_string('mido_admin_token', '999888777666',
-                    'Token to use for MidoNet API.')
-flags.DEFINE_string('mido_tap_format', 'midotap%d',
-                    'Tap name for Midonet.')
-flags.DEFINE_string('mido_agent_host', 'localhost',
-                    'The host that midonet agent is listneing on.')
-flags.DEFINE_integer('mido_agent_port', 8999,
-                     'The port that midonet agent is listening on.')
-flags.DEFINE_string('mido_libvirt_user', 'libvirt-qemu',
-                    'Libvirt user on the system.')
-flags.DEFINE_string('mido_router_network_id',
-                    'd66a5180-e322-11e0-9572-0800200c9a66',
-                    'VRN id')
-
+mc = client.MidonetClient(FLAGS.mido_admin_token,
+                          FLAGS.mido_api_host,
+                          FLAGS.mido_api_port,
+                          FLAGS.mido_api_app)
+    
+            # Create a materialized port on the router.
 def get_pwd_id(name):
     """Gets UID and GID from /etc/password file for the given user name.
     """
@@ -79,6 +72,13 @@ def _create_tap_if(mac_address):
         raise ValueError('create_tap did not return valid value.')
     return res_dict['name']
 
+def _delete_tap_if(name):
+    res = send_data_over_tcp({'action': 'delete_tap',
+                              'name': name})
+    res_dict = json.loads(res)
+    if res_dict['ret_code']:
+        raise ValueError('delete_tap did not return valid value.')
+
 def _create_ovs_port(port_id, tap_name):
     # Create a new OVS port and set its external ID to the ZK port.
     # This call should also create a bridge if it doesn't exist yet.
@@ -89,7 +89,14 @@ def _create_ovs_port(port_id, tap_name):
     res_dict = json.loads(res)
     if res_dict['ret_code']:
         raise ValueError('create_port did not return valid value.')
-    return res_dict
+
+def _delete_ovs_port(port_id):
+    res = send_data_over_tcp({'action': 'delete_port',
+                              'port_id': port_id})
+    res_dict = json.loads(res)
+    if res_dict['ret_code']:
+        raise ValueError('delete_port did not return valid value.')
+    return res_dict['name']
 
 def _activate_tap_if(tap_name):
     res = send_data_over_tcp({'action': 'activate_tap',
@@ -97,7 +104,6 @@ def _activate_tap_if(tap_name):
     res_dict = json.loads(res)
     if res_dict['ret_code']:
         raise ValueError('activate_port did not return valid value.')
-    return res_dict
 
 def _extract_id_from_header_location(response):
     return response['location'].split('/')[-1]
@@ -107,38 +113,35 @@ class MidoNetVifDriver(VIFDriver):
 
     def plug(self, instance, network, mapping):
 
-        mac_address = mapping['mac']
         router_id = network['uuid']
+        if router_id is None:
+            raise ValueError("This network is not MidoNet compatible: ",
+                             network['id'])
 
         # Create a tap interface
+        mac_address = mapping['mac']
         tap_name = _create_tap_if(mac_address)
 
-        if not router_id is None:
-            network_address, network_len = network['cidr'].split('/')
-            gateway = mapping['gateway']
-            local_network_address = mapping['ips'][0]['ip']
-            vif_id = mapping['vif_uuid']
-    
-            mc = client.MidonetClient(FLAGS.mido_admin_token,
-                                      FLAGS.mido_api_host,
-                                      FLAGS.mido_api_port,
-                                      FLAGS.mido_api_app)
-    
-            # Create a materialized port on the router.
-            response, _content = mc.create_router_port(router_id,
-                network_address, network_len, gateway, local_network_address, 32)
-            port_id = _extract_id_from_header_location(response)
-    
-            # Set a route so that the fixed IP is routed to this port.
-            response, _content = mc.create_route(router_id, '0.0.0.0', 0, 'Normal',
-                                                local_network_address, 32, port_id,
-                                                None, 100);
-    
-            # Plug in the VIF into the port
-            response, _content = mc.plug_vif(port_id, vif_id)
+        network_address, network_len = network['cidr'].split('/')
+        gateway = mapping['gateway']
+        local_network_address = mapping['ips'][0]['ip']
+        
+        response, _content = mc.create_router_port(router_id,
+            network_address, network_len, gateway, local_network_address, 32)
+        port_id = _extract_id_from_header_location(response)
+        
+        # Set a route so that the fixed IP is routed to this port.
+        response, _content = mc.create_route(router_id, '0.0.0.0', 0, 'Normal',
+                                            local_network_address, 32, port_id,
+                                            None, 100);
+        
+        # Create an OVS port.
+        _create_ovs_port(port_id, tap_name)
 
-            # Create an OVS port.
-            _res = _create_ovs_port(port_id, tap_name)
+        # Plug in the VIF into the port(even if port_id is None, keep track of VIFs
+        # and the tapname.
+        vif_id = mapping['vif_uuid']
+        response, _content = mc.create_vif(vif_id, port_id)
 
         # Activate the tap.
         _activate_tap_if(tap_name)
@@ -150,5 +153,15 @@ class MidoNetVifDriver(VIFDriver):
 
 
     def unplug(self, instance, network, mapping):
-        """No manual unplugging required."""
-        pass
+        """Remove the VIF-Port mapping"""
+        vif_id = mapping['vif_uuid']
+        response, content = mc.get_vif(vif_id)
+
+        # Delete the OVS port. TODO: delete by port name
+        port_name = _delete_ovs_port(content['portId'])
+
+        # Remove the tap if
+        _res = _delete_tap_if(port_name)
+
+        response, content = mc.delete_vif(vif_id)
+ 

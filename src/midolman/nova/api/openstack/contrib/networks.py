@@ -23,11 +23,9 @@ from nova import flags
 from nova import log as logging
 from nova.api.openstack import extensions
 from nova.api.openstack import wsgi
+from midolman.nova import flags as mido_flags
 
 FLAGS = flags.FLAGS
-flags.DEFINE_string('network_api', 'api.MidoAPI',
-                    'Nova netowrk API for MidoNet')
-
 LOG = logging.getLogger('nova.api.openstack.contrib.network')
 
 
