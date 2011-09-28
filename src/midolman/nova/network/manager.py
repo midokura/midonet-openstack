@@ -24,27 +24,9 @@ from nova.network.manager import FloatingIP
 from nova.db import api
 from nova import flags
 
-FLAGS = flags.FLAGS
-flags.DEFINE_string('mido_provider_router_id',
-                    '3cc61b4a-5845-4c9a-bd5c-2f7851b72f66',
-                    'UUID of the provider router in MidoNet')
-flags.DEFINE_string('mido_link_port_network_address',
-                    '10.0.0.0',
-                    'Network address for MidoNet logical ports')
-flags.DEFINE_integer('mido_link_port_network_len', 30,
-                     'Network address length for MidoNet logical ports')
-flags.DEFINE_string('mido_link_local_port_network_address',
-                    '10.0.0.1',
-                    'Network address for MidoNet local logical ports')
-flags.DEFINE_string('mido_link_peer_port_network_address',
-                    '10.0.0.2',
-                    'Network address for MidoNet logical port peer')
-flags.DEFINE_string('mido_api_host', '127.0.0.1',
-                    'API host of MidoNet')
-flags.DEFINE_integer('mido_api_port', 80, 'Port of the MidoNet API server')
-flags.DEFINE_string('mido_api_app', 'midolmanj-mgmt',
-                    'App name of the API server.')
+from midolman.nova import flags as mido_flags
 
+FLAGS = flags.FLAGS
 LOG = logging.getLogger('midolman.nova.network.manager')
 
 
@@ -56,7 +38,7 @@ class MidonetManager(FloatingIP, RPCAllocateFixedIP, NetworkManager):
     def create_network(self, context, label, cidr, multi_host,
                        network_size, cidr_v6, gateway_v6, bridge,
                        bridge_interface, dns1=None, dns2=None, **kwargs):
-        print "-------------------Midonet Manager. create_networks-------"
+        print "-------------------Midonet Manager. create_networks-------", context.auth_token
         #PROVIDER_ROUTER_ID = '2e180574-6e14-4c03-922f-d811cfe83d68'
 
         # Create a network in Nova and link it with the tenant router in MidoNet. 
@@ -103,6 +85,17 @@ class MidonetManager(FloatingIP, RPCAllocateFixedIP, NetworkManager):
         api.network_update(context, network.id, {"uuid": router_id})
         return network
 
+    def delete_network(self, context, fixed_range, require_disassociated=True):
+        # Get the router ID
+        network = db.network_get_by_cidr(context, fixed_range)
+        router_id = network['uuid']
+
+        # Delete from the DB.
+        super(MidonetManager, self).delete_network(context, fixed_range) 
+
+        # Delete the router.
+        response, content = mc.delete_router(router_id)
+
     def get_instance_nw_info(self, context, instance_id,
                              instance_type_id, host):
         # Need to set UUID
@@ -116,3 +109,97 @@ class MidonetManager(FloatingIP, RPCAllocateFixedIP, NetworkManager):
 
     def _setup_network(self, context, network_ref):
         pass
+
+    def associate_floating_ip(self, context, floating_address, fixed_address):
+        """Associates a floating ip to a fixed ip."""
+        floating_ip = self.db.floating_ip_get_by_address(context,
+                                                         floating_address)
+        if floating_ip['fixed_ip']:
+            raise exception.FloatingIpAlreadyInUse(
+                            address=floating_ip['address'],
+                            fixed_ip=floating_ip['fixed_ip']['address'])
+
+        self.db.floating_ip_fixed_ip_associate(context,
+                                               floating_address,
+                                               fixed_address,
+                                               self.host)
+
+        mc = midonet.MidonetClient(context.auth_token, FLAGS.mido_api_host,
+                                   FLAGS.mido_api_port, FLAGS.mido_api_app)
+
+        # Determine the network that the fixed IP belongs to.
+        network = floating_ip['fixed_ip']['network']
+        tenant_router_id = network['id']
+
+        # Get the logical router port UUID that connects the provider router
+        # this tenant router.
+        response, content = mc.get_router_link(router_id,
+                                               FLAGS.mido_provider_router_id)
+        peer_port_id = content['peerPortId']  
+
+
+        # Get the NAT PREROUTING chain UUID for this router.
+        response, content = mc.get_chain(tenant_router_id, 'nat',
+                                         'pre_routing')
+
+        # Add a DNAT rule (position 1).
+        chain_id = content['chainId']
+        response, content = mc.create_rule(chain_id, False, None, False, None,
+                                           False, 0, False, 0, False, None, 0,
+                                           False, None, 0, None, 0, False, 0,
+                                           0, False, None, 0, 0, False, 'dnat',
+                                           None, None, 'accept',
+                                           [[[],[]]], 1)  
+
+        # Add a reverse DNAT rule (position 1)
+        response, content = mc.create_rule(chain_id, False, None, False, None,
+                                           False, 0, False, 0, False, None, 0,
+                                           False, None, 0, None, 0, False, 0,
+                                           0, False, None, 0, 0, False, 'dnat',
+                                           None, None, 'accept',
+                                           [[[],[]]], 1)
+
+        # Set up a route in the provider router.
+        response, content = mc.create_route(FLAGS.mido_provider_router_id,
+                                            '0.0.0.0', 0, 'Normal',
+                                            floating_address, 32, 
+                                            peer_port_id, None, 100)
+
+    def disassociate_floating_ip(self, context, floating_address):
+        """Disassociates a floating ip."""
+        fixed_address = self.db.floating_ip_disassociate(context,
+                                                         floating_address)
+
+        # Get the router ID.
+        router_id = fixed_address['network']['uuid']
+
+        # Get the link between this router ID to the provider router ID. 
+        response, content = get_router_link(router_id,
+                                            FLAGS.mido_provider_router_id)
+        peer_port_id = content['peerPortId'] 
+
+        # Get routes to this port.
+        response, content = mc.get_port_routes(peer_port_id)
+       
+        # Go through the routes.
+        for route in content:
+            # Check if the destination IP is set to the floating IP.
+            if route['dstNetworkAddr'] == floating_address:
+               # Remove this route.
+               response, _content = mc.delete_route(route['id'])
+
+        # Get the NAT PREROUTING chain ID
+        response, content = mc.get_chain(router_id, 'nat', 'pre_routing')
+
+        # Get all the routes for this chain.
+        response, content = mc.get_rules(chain_id)
+        for rule in content:
+            # Check if this NAT rule is a DNAT rule
+            if rule['type'] == 'dnat':
+                # TODO: Check if this DNAT rule has NAT original dst == floating IP
+                response, _content = mc.delete_rule(rule['id'])
+
+            # Check if this NAT rule is a reverse-DNAT rule  
+            if rule['type'] == 'rev_dnat':
+                # TODO: Check if this DNAT rule has NAT dst == floating IP
+                response, _content = mc.delete_rule(rule['id'])

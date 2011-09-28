@@ -6,6 +6,8 @@ from nova import flags
 from nova import rpc
 from nova import network
 
+from midolman.nova import flags as mido_flags
+
 FLAGS = flags.FLAGS
 
 class MidoAPI(network.API):
