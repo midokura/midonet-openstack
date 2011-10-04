@@ -32,6 +32,7 @@ from nova import utils
 from nova.compute import instance_types
 from nova.compute import power_state
 from nova.virt import driver
+from nova.virt import images
 import nova.virt.libvirt.connection as libvirt_conn
 
 from midolman.nova import flags as mido_flags
@@ -186,6 +187,14 @@ class BootFromCDandVolumeLibvirtConnection(libvirt_conn.LibvirtConnection):
         LOG.debug(_('instance %s: finished toXML method'), instance['name'])
         return xml
 
+    def _create_image(self, context, inst, libvirt_xml, suffix='',
+                      disk_images=None, network_info=None,
+                      block_device_info=None, image_info=None):
+        super(BootFromCDandVolumeLibvirtConnection, self)._create_image(context, inst, libvirt_xml, suffix, disk_images, network_info, block_device_info)
+        path = '/var/lib/glance/images/'+ str(image_info['id'])
+        if not os.path.exists(path):
+            images.fetch(context, image_info['id'], '/var/lib/glance/images/'+ str(image_info['id']), inst['user_id'], inst['project_id'] )
+
     @exception.wrap_exception()
     def spawn(self, context, instance, network_info,
               block_device_info=None, image_info=None):
@@ -195,7 +204,7 @@ class BootFromCDandVolumeLibvirtConnection(libvirt_conn.LibvirtConnection):
         self.firewall_driver.setup_basic_filtering(instance, network_info)
         self.firewall_driver.prepare_instance_filter(instance, network_info)
         self._create_image(context, instance, xml, network_info=network_info,
-                           block_device_info=block_device_info)
+                           block_device_info=block_device_info, image_info=image_info)
 
         _domain = self._create_new_domain(xml)
         LOG.debug(_("instance %s: is running"), instance['name'])
