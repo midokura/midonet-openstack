@@ -191,9 +191,10 @@ class BootFromCDandVolumeLibvirtConnection(libvirt_conn.LibvirtConnection):
                       disk_images=None, network_info=None,
                       block_device_info=None, image_info=None):
         super(BootFromCDandVolumeLibvirtConnection, self)._create_image(context, inst, libvirt_xml, suffix, disk_images, network_info, block_device_info)
-        path = '/var/lib/glance/images/'+ str(image_info['id'])
-        if not os.path.exists(path):
-            images.fetch(context, image_info['id'], '/var/lib/glance/images/'+ str(image_info['id']), inst['user_id'], inst['project_id'] )
+        if image_info:
+            path = '/var/lib/glance/images/'+ str(image_info['id'])
+            if not os.path.exists(path):
+                images.fetch(context, image_info['id'], '/var/lib/glance/images/'+ str(image_info['id']), inst['user_id'], inst['project_id'] )
 
     @exception.wrap_exception()
     def spawn(self, context, instance, network_info,
