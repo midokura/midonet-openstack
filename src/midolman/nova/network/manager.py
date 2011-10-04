@@ -142,23 +142,12 @@ class MidonetManager(FloatingIP, RPCAllocateFixedIP, NetworkManager):
         response, content = mc.get_chain(tenant_router_id, 'nat',
                                          'pre_routing')
 
-        # Add a DNAT rule (position 1).
+        # Add a DNAT rule 
         chain_id = content['chainId']
-        response, content = mc.create_rule(chain_id, False, None, False, None,
-                                           False, 0, False, 0, False, None, 0,
-                                           False, None, 0, None, 0, False, 0,
-                                           0, False, None, 0, 0, False, 'dnat',
-                                           None, None, 'accept',
-                                           [[[],[]]], 1)  
-
-        # Add a reverse DNAT rule (position 1)
-        response, content = mc.create_rule(chain_id, False, None, False, None,
-                                           False, 0, False, 0, False, None, 0,
-                                           False, None, 0, None, 0, False, 0,
-                                           0, False, None, 0, 0, False, 'dnat',
-                                           None, None, 'accept',
-                                           [[[],[]]], 1)
-
+        response, content = mc.create_dnat_rule(
+             tenant_router_id, floating_address,
+             floating_ip['fixed_ip']['address'])
+                                                
         # Set up a route in the provider router.
         response, content = mc.create_route(FLAGS.mido_provider_router_id,
                                             '0.0.0.0', 0, 'Normal',
@@ -185,8 +174,8 @@ class MidonetManager(FloatingIP, RPCAllocateFixedIP, NetworkManager):
         for route in content:
             # Check if the destination IP is set to the floating IP.
             if route['dstNetworkAddr'] == floating_address:
-               # Remove this route.
-               response, _content = mc.delete_route(route['id'])
+                # Remove this route.
+                response, _content = mc.delete_route(route['id'])
 
         # Get the NAT PREROUTING chain ID
         response, content = mc.get_chain(router_id, 'nat', 'pre_routing')
