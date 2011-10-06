@@ -87,12 +87,14 @@ class MidonetManager(FloatingIP, RPCAllocateFixedIP, NetworkManager):
 
     def delete_network(self, context, fixed_range, require_disassociated=True):
         # Get the router ID
-        network = db.network_get_by_cidr(context, fixed_range)
+        network = self.db.network_get_by_cidr(context, fixed_range)
         router_id = network['uuid']
 
         # Delete from the DB.
         super(MidonetManager, self).delete_network(context, fixed_range) 
 
+        mc = midonet.MidonetClient(context.auth_token, FLAGS.mido_api_host,
+                                   FLAGS.mido_api_port, FLAGS.mido_api_app)
         # Delete the router.
         response, content = mc.delete_router(router_id)
 
@@ -133,18 +135,17 @@ class MidonetManager(FloatingIP, RPCAllocateFixedIP, NetworkManager):
 
         # Get the logical router port UUID that connects the provider router
         # this tenant router.
-        response, content = mc.get_router_link(router_id,
+        response, content = mc.get_peer_router_detail(router_id,
                                                FLAGS.mido_provider_router_id)
-        peer_port_id = content['peerPortId']  
-
-
-        # Get the NAT PREROUTING chain UUID for this router.
-        response, content = mc.get_chain(tenant_router_id, 'nat',
-                                         'pre_routing')
+        provider_router_port_id = content['peerPortId']  
 
         # Add a DNAT rule 
-        chain_id = content['chainId']
         response, content = mc.create_dnat_rule(
+             tenant_router_id, floating_address,
+             floating_ip['fixed_ip']['address'])
+
+        # Add a SNAT rule 
+        response, content = mc.create_snat_rule(
              tenant_router_id, floating_address,
              floating_ip['fixed_ip']['address'])
                                                 
@@ -152,7 +153,7 @@ class MidonetManager(FloatingIP, RPCAllocateFixedIP, NetworkManager):
         response, content = mc.create_route(FLAGS.mido_provider_router_id,
                                             '0.0.0.0', 0, 'Normal',
                                             floating_address, 32, 
-                                            peer_port_id, None, 100)
+                                            provider_router_port_id, None, 100)
 
     def disassociate_floating_ip(self, context, floating_address):
         """Disassociates a floating ip."""
@@ -168,7 +169,7 @@ class MidonetManager(FloatingIP, RPCAllocateFixedIP, NetworkManager):
         peer_port_id = content['peerPortId'] 
 
         # Get routes to this port.
-        response, content = mc.get_port_routes(peer_port_id)
+        response, content = mc.list_port_route(peer_port_id)
        
         # Go through the routes.
         for route in content:
@@ -178,17 +179,21 @@ class MidonetManager(FloatingIP, RPCAllocateFixedIP, NetworkManager):
                 response, _content = mc.delete_route(route['id'])
 
         # Get the NAT PREROUTING chain ID
-        response, content = mc.get_chain(router_id, 'nat', 'pre_routing')
-
+        response, content = mc.get_chain_by_name(router_id, 'nat', 'pre_routing')
+        chain_id = content['id']
         # Get all the routes for this chain.
-        response, content = mc.get_rules(chain_id)
+        response, content = mc.list_rule(chain_id)
         for rule in content:
-            # Check if this NAT rule is a DNAT rule
-            if rule['type'] == 'dnat':
-                # TODO: Check if this DNAT rule has NAT original dst == floating IP
+            # Check if this NAT rule is a DNAT rule and matches the floating ipPREROUTING
+            if rule['type'] == 'dnat' and rule['nwDstAddress'] == floating_address:
                 response, _content = mc.delete_rule(rule['id'])
 
-            # Check if this NAT rule is a reverse-DNAT rule  
-            if rule['type'] == 'rev_dnat':
-                # TODO: Check if this DNAT rule has NAT dst == floating IP
+        # Get the NAT POSTROUTING chain ID
+        response, content = mc.get_chain_by_name(router_id, 'nat', 'post_routing')
+        chain_id = content['id']
+        # Get all the routes for this chain.
+        response, content = mc.list_rule(chain_id)
+        for rule in content:
+            # Check if this NAT rule is a SNAT rule and matches the floating ip
+            if rule['type'] == 'snat' and (floating_address in rule['natTargets'][0][0]):
                 response, _content = mc.delete_rule(rule['id'])

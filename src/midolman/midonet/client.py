@@ -168,8 +168,8 @@ class MidonetClient:
         return self._do_request(location, "POST", body)
 
 
-    def get_router_link(self, router_id, peer_router_id):
-        location = 'routers/%s/link' % router_id
+    def get_peer_router_detail(self, router_id, peer_router_id):
+        location = 'routers/%s/routers/%s' % (router_id, peer_router_id)
         body = '{"peerRouterId":"%s"}'% peer_router_id
         return self._do_request(location, "GET", body)
 
@@ -215,8 +215,7 @@ class MidonetClient:
 
     def get_route(self, routes_id):
         location = 'routes/%s' % routes_id
-        return self._do_request(location, "GET", body)
-
+        return self._do_request(location, "GET")
 
     def list_route(self, router_id):
         location = 'routers/%s/routes' % router_id
@@ -225,6 +224,10 @@ class MidonetClient:
     def list_port_route(self, port_id):
         location = 'ports/%s/routes' % port_id
         return self._do_request(location, "GET")
+
+    def delete_route(self, routes_id):
+        location = 'routes/%s' % routes_id
+        return self._do_request(location, "DELETE")
 
     # chains
     def create_chain(self, router_id, name):
@@ -315,44 +318,40 @@ class MidonetClient:
         return self._do_request(location, "POST", body)
 
     def create_dnat_rule(self, router_id, 
-                         nw_src_address,
-                         new_src_address):
-       response, context = self.get_chain_by_name(router_id, 'nat',
+                         nw_dst_address,   #floating
+                         new_dst_address): #fixed
+        response, context = self.get_chain_by_name(router_id, 'nat',
                                              'pre_routing')
-       chain_id = context['id']
-       self.create_rule(chain_id, False, None, False, None,
-                        False, 0, False, 0, False,
+        chain_id = context['id']
+        return self.create_rule(chain_id, False, None, False, None,
+                        False, 0, False, None, False,
                         None, 0, False, nw_src_address, 32, False, 0, 0,
                         False, 0, 0, False, 'dnat', None, None, 'accept',
-                        [[[new_src_address, new_src_address], [0,0]]], 1)
-       self.create_rule(chain_id, False, None, False, None,
-                        False, 0, False, 0, False,
-                        None, 0, False, new_src_address, 32, False, 0, 0,
-                        False, 0, 0, False, 'rev_dnat', None, None, 'accept',
-                        [[[nw_src_address, nw_src_address], [0,0]]], 1)
+                        [[[new_dst_address, new_dst_address], [0,0]]], 1)
 
-    def create_rev_dnat_rule(self, router_id, 
-                         nw_src_address,
-                         new_src_address):
-       response, context = self.get_chain_by_name(router_id, 'nat',
-                                                  'pre_routing')
-       chain_id = context['id']
-       return create_rule(chain_id, False, None, False, None,
-                          False, 0, False, 0, False,
-                          None, 0, False, nw_src_addresss, 32, False, 0, 0,
-                          False, 0, 0, False, 'rev_dnat', None, None, 'accept',
-                          [[[new_src_adderss, new_src_address], [0,0]]], 1)
+    def create_snat_rule(self, router_id, 
+                         new_nw_src_address, #floating
+                         nw_src_address):    #fixed
+        response, context = self.get_chain_by_name(router_id, 'nat',
+                                             'post_routing')
+        chain_id = context['id']
+
+        return self.create_rule(chain_id, False, None, False, None,
+                        False, 0, False, None, False,
+                        nw_src_address, 32, False, None, 0, False, 0, 0,
+                        False, 0, 0, False, 'dnat', None, None, 'accept',
+                        [[[new_nw_src_address, new_nw_src_address], [0,0]]], 1)
 
     def get_rule(self, rule_id):
-        location = '/rules/%s' % chain_id
+        location = 'rules/%s' % rule_id
         return self._do_request(location, "GET")
 
     def list_rule(self, chain_id):
         location = 'chains/%s/rules' % chain_id
         return self._do_request(location, "GET")
 
-    def delete(self, rule_id):
-        location = '/rules/%s' % chain_id
+    def delete_rule(self, rule_id):
+        location = 'rules/%s' % rule_id
         return self._do_request(location, "DELETE")
 
 def main():
@@ -364,7 +363,8 @@ def main():
         else:
             return arg
 
-    client = MidonetClient(token = '999888777666', port=8081, host='192.168.100.2', app='midolmanj-mgmt-0.1.0-SNAPSHOT')
+    #client = MidonetClient(token = '999888777666', port=8081, host='192.168.100.2', app='midolmanj-mgmt-0.1.0-SNAPSHOT')
+    client = MidonetClient(token = '999888777666')
     # simple repl.
     while True:
         try:
