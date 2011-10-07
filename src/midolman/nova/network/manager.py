@@ -23,6 +23,7 @@ from nova.network.manager import RPCAllocateFixedIP
 from nova.network.manager import FloatingIP 
 from nova.db import api
 from nova import flags
+from nova import exception
 
 from midolman.nova import flags as mido_flags
 
@@ -93,8 +94,6 @@ class MidonetManager(FloatingIP, RPCAllocateFixedIP, NetworkManager):
         # Delete from the DB.
         super(MidonetManager, self).delete_network(context, fixed_range) 
 
-        mc = midonet.MidonetClient(context.auth_token, FLAGS.mido_api_host,
-                                   FLAGS.mido_api_port, FLAGS.mido_api_app)
         # Delete the router.
         response, content = mc.delete_router(router_id)
 
@@ -130,12 +129,17 @@ class MidonetManager(FloatingIP, RPCAllocateFixedIP, NetworkManager):
                                    FLAGS.mido_api_port, FLAGS.mido_api_app)
 
         # Determine the network that the fixed IP belongs to.
-        network = floating_ip['fixed_ip']['network']
-        tenant_router_id = network['id']
+        floating_ip = self.db.floating_ip_get_by_address(context,
+                                                         floating_address)
+        network_id = floating_ip['fixed_ip']['network_id']
+        tenant_router_id = self.db.network_get(context, network_id)['uuid']
+
+        print "floating_ip --->", floating_ip
+        print "tenant_router_id --->", tenant_router_id
 
         # Get the logical router port UUID that connects the provider router
         # this tenant router.
-        response, content = mc.get_peer_router_detail(router_id,
+        response, content = mc.get_peer_router_detail(tenant_router_id,
                                                FLAGS.mido_provider_router_id)
         provider_router_port_id = content['peerPortId']  
 
@@ -157,14 +161,25 @@ class MidonetManager(FloatingIP, RPCAllocateFixedIP, NetworkManager):
 
     def disassociate_floating_ip(self, context, floating_address):
         """Disassociates a floating ip."""
+
+        # Get the logical router port UUID that connects the provider router
+        floating_ip = self.db.floating_ip_get_by_address(context,
+                                                         floating_address)
+        network_id = floating_ip['fixed_ip']['network_id']
+        tenant_router_id = self.db.network_get(context, network_id)['uuid']
+
+        print "floating_ip --->", floating_ip
+        print "tenant_router_id --->", tenant_router_id
+
+        # take care of nova db record
         fixed_address = self.db.floating_ip_disassociate(context,
                                                          floating_address)
 
-        # Get the router ID.
-        router_id = fixed_address['network']['uuid']
+        mc = midonet.MidonetClient(context.auth_token, FLAGS.mido_api_host,
+                                   FLAGS.mido_api_port, FLAGS.mido_api_app)
 
         # Get the link between this router ID to the provider router ID. 
-        response, content = get_router_link(router_id,
+        response, content = mc.get_peer_router_detail(tenant_router_id,
                                             FLAGS.mido_provider_router_id)
         peer_port_id = content['peerPortId'] 
 
@@ -179,7 +194,7 @@ class MidonetManager(FloatingIP, RPCAllocateFixedIP, NetworkManager):
                 response, _content = mc.delete_route(route['id'])
 
         # Get the NAT PREROUTING chain ID
-        response, content = mc.get_chain_by_name(router_id, 'nat', 'pre_routing')
+        response, content = mc.get_chain_by_name(tenant_router_id, 'nat', 'pre_routing')
         chain_id = content['id']
         # Get all the routes for this chain.
         response, content = mc.list_rule(chain_id)
@@ -189,7 +204,7 @@ class MidonetManager(FloatingIP, RPCAllocateFixedIP, NetworkManager):
                 response, _content = mc.delete_rule(rule['id'])
 
         # Get the NAT POSTROUTING chain ID
-        response, content = mc.get_chain_by_name(router_id, 'nat', 'post_routing')
+        response, content = mc.get_chain_by_name(tenant_router_id, 'nat', 'post_routing')
         chain_id = content['id']
         # Get all the routes for this chain.
         response, content = mc.list_rule(chain_id)

@@ -325,7 +325,7 @@ class MidonetClient:
         chain_id = context['id']
         return self.create_rule(chain_id, False, None, False, None,
                         False, 0, False, None, False,
-                        None, 0, False, nw_src_address, 32, False, 0, 0,
+                        None, 0, False, nw_dst_address, 32, False, 0, 0,
                         False, 0, 0, False, 'dnat', None, None, 'accept',
                         [[[new_dst_address, new_dst_address], [0,0]]], 1)
 
