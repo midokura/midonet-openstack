@@ -39,7 +39,7 @@ class MidonetManager(FloatingIP, RPCAllocateFixedIP, NetworkManager):
     def create_network(self, context, label, cidr, multi_host,
                        network_size, cidr_v6, gateway_v6, bridge,
                        bridge_interface, dns1=None, dns2=None, **kwargs):
-        print "-------------------Midonet Manager. create_networks-------", context.auth_token
+        LOG.info("-------------------Midonet Manager. create_networks-------")
         #PROVIDER_ROUTER_ID = '2e180574-6e14-4c03-922f-d811cfe83d68'
 
         # Create a network in Nova and link it with the tenant router in MidoNet. 
@@ -49,41 +49,52 @@ class MidonetManager(FloatingIP, RPCAllocateFixedIP, NetworkManager):
         if networks is None or len(networks) == 0:
             return None
         network = networks[0]
-        print 'created network', network 
+        LOG.info("created network: %s", network)
 
         mc = midonet.MidonetClient(context.auth_token, FLAGS.mido_api_host,
                                    FLAGS.mido_api_port, FLAGS.mido_api_app)
         tenant_id = kwargs['project_id']
         router_name = label
 
-        print 'context.auth_token', context.auth_token
-        print 'tenant_id', tenant_id 
-        print 'router_name', router_name 
+        LOG.info('context.auth_token: %s', context.auth_token)
+        LOG.info('tenant_id: %s', tenant_id)
+        LOG.info('router_name %s', router_name)
 
         # Create the tenant.  Swallow any error here.(YUCK!)
         _response, _content = mc.create_tenant(tenant_id)
 
         # Create a router for this tenant.
         response, _content = mc.create_router(tenant_id, router_name)
-        router_id = _extract_id_from_header_location(response)
-        print 'router_id', router_id 
+        tenant_router_id = _extract_id_from_header_location(response)
+        LOG.info('tenant_router_id: %s', tenant_router_id)
 
         # Link this router to the provider router via logical ports.
-        response, content = mc.link_router(router_id,
+        response, content = mc.link_router(tenant_router_id,
                                           FLAGS.mido_link_port_network_address,
                                           FLAGS.mido_link_port_network_len,
                                           FLAGS.mido_link_local_port_network_address,
                                           FLAGS.mido_link_peer_port_network_address,
                                           FLAGS.mido_provider_router_id)
-        print 'created tenant router' 
 
-        # Add a default route to the provider router.
-        response, content = mc.create_route(router_id, '0.0.0.0', 0, 'Normal',
-                                            '0.0.0.0', 0, content['peerPortId'],
+        provider_port = content['peerPortId']
+        tenant_port = content['portId']
+
+        # Add the default route in the tenant router.
+        response, content = mc.create_route(tenant_router_id, '0.0.0.0', 0, 'Normal',
+                                            '0.0.0.0', 0, tenant_port,
+                                            None, 100);
+
+        LOG.info('cidr: %s', cidr )
+        dst_net, dst_len = cidr.split('/')
+
+        # Add a route to the network in the provider router.
+        response, content = mc.create_route(FLAGS.mido_provider_router_id, 
+                                            '0.0.0.0', 0, 'Normal',
+                                            dst_net, int(dst_len), provider_port,
                                             None, 100);
 
         # Hack to put uuid inside database
-        api.network_update(context, network.id, {"uuid": router_id})
+        api.network_update(context, network.id, {"uuid": tenant_router_id})
         return network
 
     def delete_network(self, context, fixed_range, require_disassociated=True):
@@ -134,8 +145,8 @@ class MidonetManager(FloatingIP, RPCAllocateFixedIP, NetworkManager):
         network_id = floating_ip['fixed_ip']['network_id']
         tenant_router_id = self.db.network_get(context, network_id)['uuid']
 
-        print "floating_ip --->", floating_ip
-        print "tenant_router_id --->", tenant_router_id
+        LOG.info("floating_ip: %s", floating_ip)
+        LOG.info("tenant_router_id: %s", tenant_router_id)
 
         # Get the logical router port UUID that connects the provider router
         # this tenant router.
@@ -168,8 +179,8 @@ class MidonetManager(FloatingIP, RPCAllocateFixedIP, NetworkManager):
         network_id = floating_ip['fixed_ip']['network_id']
         tenant_router_id = self.db.network_get(context, network_id)['uuid']
 
-        print "floating_ip --->", floating_ip
-        print "tenant_router_id --->", tenant_router_id
+        LOG.info("floating_ip: %s", floating_ip)
+        LOG.info("tenant_router_id: %s",  tenant_router_id)
 
         # take care of nova db record
         fixed_address = self.db.floating_ip_disassociate(context,
@@ -192,6 +203,7 @@ class MidonetManager(FloatingIP, RPCAllocateFixedIP, NetworkManager):
             if route['dstNetworkAddr'] == floating_address:
                 # Remove this route.
                 response, _content = mc.delete_route(route['id'])
+                LOG.info("route deleted: %s",  route['id'])
 
         # Get the NAT PREROUTING chain ID
         response, content = mc.get_chain_by_name(tenant_router_id, 'nat', 'pre_routing')
@@ -202,6 +214,7 @@ class MidonetManager(FloatingIP, RPCAllocateFixedIP, NetworkManager):
             # Check if this NAT rule is a DNAT rule and matches the floating ipPREROUTING
             if rule['type'] == 'dnat' and rule['nwDstAddress'] == floating_address:
                 response, _content = mc.delete_rule(rule['id'])
+                LOG.info("dnat rule deleted: %s",  rule['id'])
 
         # Get the NAT POSTROUTING chain ID
         response, content = mc.get_chain_by_name(tenant_router_id, 'nat', 'post_routing')
@@ -212,3 +225,4 @@ class MidonetManager(FloatingIP, RPCAllocateFixedIP, NetworkManager):
             # Check if this NAT rule is a SNAT rule and matches the floating ip
             if rule['type'] == 'snat' and (floating_address in rule['natTargets'][0][0]):
                 response, _content = mc.delete_rule(rule['id'])
+                LOG.info("snat rule deleted: %s",  rule['id'])
