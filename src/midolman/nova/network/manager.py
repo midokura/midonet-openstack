@@ -18,7 +18,7 @@
 
 from midolman.midonet import client as midonet
 from nova import log as logging
-from nova.network.manager import NetworkManager 
+from nova.network.manager import FlatManager 
 from nova.network.manager import RPCAllocateFixedIP 
 from nova.network.manager import FloatingIP 
 from nova.db import api
@@ -34,12 +34,12 @@ LOG = logging.getLogger('midolman.nova.network.manager')
 def _extract_id_from_header_location(response):
     return response['location'].split('/')[-1]
 
-class MidonetManager(FloatingIP, RPCAllocateFixedIP, NetworkManager):
+class MidonetManager(FloatingIP, FlatManager):
 
     def create_network(self, context, label, cidr, multi_host,
                        network_size, cidr_v6, gateway_v6, bridge,
                        bridge_interface, dns1=None, dns2=None, **kwargs):
-        LOG.info("-------------------Midonet Manager. create_networks-------")
+        LOG.info("-------------------Midonet Manager. create_networks-------: %r", kwargs)
         #PROVIDER_ROUTER_ID = '2e180574-6e14-4c03-922f-d811cfe83d68'
 
         # Create a network in Nova and link it with the tenant router in MidoNet. 
@@ -49,6 +49,9 @@ class MidonetManager(FloatingIP, RPCAllocateFixedIP, NetworkManager):
         if networks is None or len(networks) == 0:
             return None
         network = networks[0]
+        # hack to set dummy string to host attr in the network entry
+        self.host = "DUMMY-HOST"
+        self.set_network_host(context, network)
         LOG.info("created network: %s", network)
 
         mc = midonet.MidonetClient(context.auth_token, FLAGS.mido_api_host,
