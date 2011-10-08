@@ -8,7 +8,10 @@ import sys
 import httplib2
 import readline
 import json
+import logging
+import inspect
 
+logging.basicConfig(level=logging.DEBUG)
 
 class MidonetClient:
 
@@ -23,10 +26,10 @@ class MidonetClient:
 
         url = "http://%s:%d/%s/v1/%s" % (self.host, self.port, self.app, location)
         #url = MIDONET_API_SERVER + '/midolmanj-mgmt/v1/%s' % location
-        print "-------------------"
-        print "URL: ", url
-        print "method: ", method
-        print "body: ", body
+        logging.debug("-------- %r", inspect.stack()[1][3])
+        logging.debug("URL: %r", url)
+        logging.debug("method: %r", method)
+        logging.debug("body: %r", body)
 
         response, content = self.h.request(url, method, body, headers={
         "Content-Type": "application/json",
@@ -34,12 +37,14 @@ class MidonetClient:
         )
 
         try:
-            resp = json.loads(content)
+            content = json.loads(content)
         except:
             # FIXME: Fix this.  Just for now, we don't handle error message well.
-            resp = None
+            content = None
 
-        return response, resp 
+        logging.debug("response: %r", response)
+        logging.debug("content: %r", content)
+        return response, content 
 
     # tenants
     def create_tenant(self, uuid=None):
