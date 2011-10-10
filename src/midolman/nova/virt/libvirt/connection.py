@@ -127,9 +127,7 @@ class BootFromCDandVolumeLibvirtConnection(libvirt_conn.LibvirtConnection):
                     'volumes': block_device_mapping,
                     'use_virtio_for_bridges':
                             FLAGS.libvirt_use_virtio_for_bridges,
-                    'ephemerals': ephemerals,
-                    'image_location': 
-                            image_info['location'].replace('file://', '')}
+                    'ephemerals': ephemerals}
 
         root_device_name = driver.block_device_info_get_root(block_device_info)
         if root_device_name:
@@ -174,6 +172,9 @@ class BootFromCDandVolumeLibvirtConnection(libvirt_conn.LibvirtConnection):
                 xml_info['ramdisk'] = xml_info['basepath'] + "/ramdisk"
 
             xml_info['disk'] = xml_info['basepath'] + "/disk"
+
+        if image_info:
+            xml_info['image_location'] = xml_info['basepath'] + "/image-" + str(image_info['id'] )
         return xml_info
 
 
@@ -192,9 +193,10 @@ class BootFromCDandVolumeLibvirtConnection(libvirt_conn.LibvirtConnection):
                       block_device_info=None, image_info=None):
         super(BootFromCDandVolumeLibvirtConnection, self)._create_image(context, inst, libvirt_xml, suffix, disk_images, network_info, block_device_info)
         if image_info:
-            path = '/var/lib/glance/images/'+ str(image_info['id'])
+            basepath = os.path.join(FLAGS.instances_path, inst['name'])
+            path = basepath + "/image-" + str(image_info['id'])
             if not os.path.exists(path):
-                images.fetch(context, image_info['id'], '/var/lib/glance/images/'+ str(image_info['id']), inst['user_id'], inst['project_id'] )
+                images.fetch(context, image_info['id'], path, inst['user_id'], inst['project_id'] )
 
     @exception.wrap_exception()
     def spawn(self, context, instance, network_info,
