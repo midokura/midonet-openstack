@@ -344,7 +344,7 @@ class MidonetClient:
         return self.create_rule(chain_id, False, None, False, None,
                         False, 0, False, None, False,
                         nw_src_address, 32, False, None, 0, False, 0, 0,
-                        False, 0, 0, False, 'dnat', None, None, 'accept',
+                        False, 0, 0, False, 'snat', None, None, 'accept',
                         [[[new_nw_src_address, new_nw_src_address], [0,0]]], 1)
 
     def get_rule(self, rule_id):
