@@ -87,15 +87,6 @@ class MidonetManager(FloatingIP, FlatManager):
                                             '0.0.0.0', 0, tenant_port,
                                             None, 100);
 
-        LOG.info('cidr: %s', cidr )
-        dst_net, dst_len = cidr.split('/')
-
-        # Add a route to the network in the provider router.
-        response, content = mc.create_route(FLAGS.mido_provider_router_id, 
-                                            '0.0.0.0', 0, 'Normal',
-                                            dst_net, int(dst_len), provider_port,
-                                            None, 100);
-
         # Hack to put uuid inside database
         api.network_update(context, network.id, {"uuid": tenant_router_id})
         return network
