@@ -49,14 +49,11 @@ class MidonetManager(FloatingIP, FlatManager):
         if networks is None or len(networks) == 0:
             return None
         network = networks[0]
-        # hack to set dummy string to host attr in the network entry
-        self.host = "DUMMY-HOST"
-        self.set_network_host(context, network)
         LOG.info("created network: %s", network)
 
         mc = midonet.MidonetClient(context.auth_token, FLAGS.mido_api_host,
                                    FLAGS.mido_api_port, FLAGS.mido_api_app)
-        tenant_id = kwargs['project_id']
+        tenant_id = kwargs.get('project_id')
         router_name = label
 
         LOG.info('context.auth_token: %s', context.auth_token)
@@ -87,8 +84,8 @@ class MidonetManager(FloatingIP, FlatManager):
                                             '0.0.0.0', 0, tenant_port,
                                             None, 100);
 
-        # Hack to put uuid inside database
-        api.network_update(context, network.id, {"uuid": tenant_router_id})
+        # Hack to put uuid and tenant_id (into project_id) inside database
+        api.network_update(context, network.id, {"project_id": tenant_id, "uuid": tenant_router_id})
         return network
 
     def delete_network(self, context, fixed_range, require_disassociated=True):
@@ -220,3 +217,4 @@ class MidonetManager(FloatingIP, FlatManager):
             if rule['type'] == 'snat' and (floating_address in rule['natTargets'][0][0]):
                 response, _content = mc.delete_rule(rule['id'])
                 LOG.info("snat rule deleted: %s",  rule['id'])
+
