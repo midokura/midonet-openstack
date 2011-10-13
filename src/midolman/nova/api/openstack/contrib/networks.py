@@ -42,7 +42,7 @@ def _translate_network_view(network):
 
 
 def _translate_networks_view(networks):
-    return {'networks': [ _translate_network_view(n) for n in networks] }
+    return {'networks': [ _translate_network_view(n)['network'] for n in networks] }
 
 
 def _get_metadata():
@@ -81,15 +81,21 @@ class NetworkController(object):
         net = db.network_get_all(context)
         return _translate_networks_view(net)
 
-    def show(self, req, networkId):
+    def show(self, req, id):
         context = req.environ['nova.context']
-        network = self.network_api.get_network(context, networkId)
+        network = db.network_get_by_uuid(context, id)
         return _translate_network_view(network)
 
-    def delete(self, req, networkId):
-        _context = req.environ['nova.context']
+    def delete(self, req, id):
 
-        return webob.exc.HTTPNotImplemented()
+        context = req.environ['nova.context']
+        network = db.network_get_by_uuid(context, id)
+        cidr = network['cidr']
+        
+        self.network_api.delete_network(context, cidr)
+
+
+        return {}
 
 
 class Networks(extensions.ExtensionDescriptor):

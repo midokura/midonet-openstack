@@ -28,6 +28,13 @@ class MidoAPI(network.API):
                                   'project_id': kwargs['project_id']
                                   }})
 
+    def delete_network(self, context, fixed_range):
+        return rpc.call(context, FLAGS.network_topic,
+                        {'method': 'delete_network',
+                         'args': {'fixed_range': fixed_range
+                                  }})
+
+
     def get_network(self, context, uuid):
         return self.db.network_get_by_uuid(context, uuid)
 

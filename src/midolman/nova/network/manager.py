@@ -90,6 +90,7 @@ class MidonetManager(FloatingIP, FlatManager):
         return network
 
     def delete_network(self, context, fixed_range, require_disassociated=True):
+        LOG.debug("---- delete_network: %r", fixed_range)
         # Get the router ID
         network = self.db.network_get_by_cidr(context, fixed_range)
         router_id = network['uuid']
@@ -98,6 +99,8 @@ class MidonetManager(FloatingIP, FlatManager):
         super(MidonetManager, self).delete_network(context, fixed_range) 
 
         # Delete the router.
+        mc = midonet.MidonetClient(context.auth_token, FLAGS.mido_api_host,
+                                   FLAGS.mido_api_port, FLAGS.mido_api_app)
         response, content = mc.delete_router(router_id)
 
     def get_instance_nw_info(self, context, instance_id,
