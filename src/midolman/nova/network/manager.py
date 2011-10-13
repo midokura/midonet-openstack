@@ -218,3 +218,50 @@ class MidonetManager(FloatingIP, FlatManager):
                 response, _content = mc.delete_rule(rule['id'])
                 LOG.info("snat rule deleted: %s",  rule['id'])
 
+    def validate_networks(self, context, networks):
+        LOG.debug("---Midonet validate_networks [networks] ---%r", networks)
+
+        if networks is None:
+            return
+
+        mc = midonet.MidonetClient(context.auth_token, FLAGS.mido_api_host,
+                                   FLAGS.mido_api_port, FLAGS.mido_api_app)
+
+        for (net_id, _i) in networks:
+            # make sure that there's a entry in the networks table
+            network = self.db.network_get_by_uuid(context, net_id)
+
+            tenant_id = network['project_id']
+            response, content = mc.list_router(tenant_id)
+
+            if response['status'] == '200':
+                routers = content
+                for r in routers:
+                    LOG.debug("  validate_networks-------: %r", r)
+                    if r['id'] == net_id:
+                        LOG.debug("    validate_networks-------: FOUND")
+                        found = True
+                if not found:
+                    raise exception.NetworkNotFound(network_id=net_id)
+            else:
+
+                raise exception.NetworkNotFound(network_id=net_id)
+				
+
+    # quick and dirty hack. will clean up by overriding allocate_for_instance
+    def _get_networks_for_instance(self, context, instance_id, project_id,
+                                   requested_networks=None):
+        """Determine which networks an instance should connect to."""
+        # get networks associated with project
+        if requested_networks is not None and len(requested_networks) != 0:
+            network_uuids = [uuid for (uuid, fixed_ip) in requested_networks]
+            networks = []
+            for uuid in network_uuids:
+                networks.append(self.db.network_get_by_uuid(context, uuid))
+                                                    
+        else:
+            networks = self.db.project_get_networks(context, project_id)
+        LOG.debug("  networks-------: %r", networks)
+        return networks
+
+
