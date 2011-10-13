@@ -18,6 +18,7 @@
 import webob
 from webob import exc
 from nova import utils
+from nova import db
 
 from nova import flags
 from nova import log as logging
@@ -31,18 +32,17 @@ LOG = logging.getLogger('nova.api.openstack.contrib.network')
 
 def _translate_network_view(network):
     if network:
-        result = {'id': network['uuid'], "cidr": network['cidr'], "netmask": network['netmask'], "bridge": network['bridge'],
-                  "gateway": network['gateway'], "broadcast": network['broadcast'], "dns1": network['dns1'],
-                  "vlan": network['vlan'], "vpn_public_address": network['vpn_public_address'],
-                  "vpn_public_port": network['vpn_public_port'], "vpn_private_address": network['vpn_private_address'],
-                  "dhcp_start": network['dhcp_start'], "project_id": network['project_id'], "host": network['host'], 
-                  "cider_v6": network['cidr_v6'], "gateway_v6": network['gateway_v6'], "label": network['label'],
-                  "netmask_v6": network['netmask_v6'], "bridge_interface": network['bridge_interface'], 
-                  "multi_host": network['multi_host'], "dns2": network['dns2'], "priority": network['priority']}
+        result = {'id': network['uuid'], "cidr": network['cidr'], "netmask": network['netmask'],
+                  "gateway": network['gateway'], "broadcast": network['broadcast'],
+                  "project_id": network['project_id'],
+                  "label": network['label']}
     else:
         result = {}
-    
     return {'network': result}
+
+
+def _translate_networks_view(networks):
+    return {'networks': [ _translate_network_view(n) for n in networks] }
 
 
 def _get_metadata():
@@ -75,6 +75,11 @@ class NetworkController(object):
         network_dict = body['network']
         net = self.network_api.create_network(context, **network_dict)
         return _translate_network_view(net)
+
+    def index(self, req):
+        context = req.environ['nova.context']
+        net = db.network_get_all(context)
+        return _translate_networks_view(net)
 
     def show(self, req, networkId):
         context = req.environ['nova.context']
