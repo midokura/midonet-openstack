@@ -87,14 +87,10 @@ class NetworkController(object):
         return _translate_network_view(network)
 
     def delete(self, req, id):
-
         context = req.environ['nova.context']
         network = db.network_get_by_uuid(context, id)
         cidr = network['cidr']
-        
         self.network_api.delete_network(context, cidr)
-
-
         return {}
 
 
