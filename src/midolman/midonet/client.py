@@ -52,8 +52,12 @@ class MidonetClient:
         if uuid:
             body ='{"id": "%s"}' % uuid
             print body
-    
         return self._do_request("tenants", "POST", body)
+
+    def delete_tenant(self, tenant_id):
+        location = "tenants/%s" % tenant_id
+        return self._do_request(location, "DELETE")
+
 
     # bridges
     def create_bridge(self, tenant_id, name):
@@ -110,7 +114,6 @@ class MidonetClient:
         location = 'ports/%s' % port_id
         return self._do_request(location, "DELETE")
 
-
     # routers
     def create_router(self, tenant_id, name):
         assert tenant_id != None
@@ -136,6 +139,11 @@ class MidonetClient:
         body ='{"name": "%s"}' % name
         return self._do_request(location, "PUT", body)
 
+    def delete_router(self, router_id):
+        assert router_id != None
+        location = 'routers/%s' % router_id
+        return self._do_request(location, "DELETE")
+ 
     # router port
     def create_router_port(self, router_id, network_address,\
                                             network_length, port_address,\
