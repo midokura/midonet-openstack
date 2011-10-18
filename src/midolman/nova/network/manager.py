@@ -85,7 +85,7 @@ class MidonetManager(FloatingIP, FlatManager):
                                             None, 100);
 
         # Hack to put uuid and tenant_id (into project_id) inside database
-        api.network_update(context, network.id, {"project_id": tenant_id, 
+        network = api.network_update(context, network.id, {"project_id": tenant_id, 
             "uuid": tenant_router_id})
         return network
 
