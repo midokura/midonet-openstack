@@ -27,8 +27,6 @@ from nova.compute import vm_states
 from nova.notifier import api as notifier
 from nova.compute.manager import ComputeManager
 
-from midolman.nova import flags as mido_flags
-
 LOG = logging.getLogger('midolman.nova.compute.manager')
 FLAGS = flags.FLAGS
 

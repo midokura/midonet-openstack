@@ -24,8 +24,6 @@ from nova.api.openstack import extensions
 from nova.api.openstack import wsgi
 import netaddr
 
-from midolman.nova import flags as mido_flags
-
 LOG = logging.getLogger('nova.api.openstack.contrib.mido_floating_ips')
 
 

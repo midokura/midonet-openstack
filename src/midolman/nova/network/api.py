@@ -6,26 +6,27 @@ from nova import flags
 from nova import rpc
 from nova import network
 
-from midolman.nova import flags as mido_flags
-
 FLAGS = flags.FLAGS
 
 class MidoAPI(network.API):
 
     def create_network(self, context, **kwargs):
         return rpc.call(context, FLAGS.network_topic,
-                        {'method': 'create_network',
-                         'args': {'label': kwargs.get('label'),
-                                  'cidr': kwargs.get('cidr'),
-                                  'multi_host': kwargs.get('multi_host'),
-                                  'network_size': kwargs.get('network_size'),
-                                  'cidr_v6': kwargs.get('cidr_v6'),
-                                  'gateway_v6': kwargs.get('gateway_v6'),
-                                  'bridge': kwargs.get('bridge'),
-                                  'bridge_interface': kwargs.get('bridge_interface'),
-                                  'dns1': kwargs.get('dns1'),
-                                  'dns2': kwargs.get('dns2'),
-                                  'project_id': kwargs.get('project_id')
+                        {'method': 'create_networks',
+                         'args': {'label': kwargs['label'],
+                                  'cidr': kwargs['cidr'],
+                                  'multi_host': kwargs['multi_host'],
+                                  'num_networks': 1,
+                                  'network_size': kwargs['network_size'],
+                                  'cidr_v6': kwargs['cidr_v6'],
+                                  'gateway_v6': kwargs['gateway_v6'],
+                                  'bridge': kwargs['bridge'],
+                                  'bridge_interface': kwargs['bridge_interface'],
+                                  'dns1': kwargs['dns1'],
+                                  'dns2': kwargs['dns2'],
+                                  'project_id': kwargs.get('project_id'),
+                                  'uuid': kwargs.get('uuid'),
+                                  'priority': kwargs.get("priority", 0)
                                   }})
 
     def delete_network(self, context, fixed_range):

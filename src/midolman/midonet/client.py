@@ -12,15 +12,20 @@ import logging
 import inspect
 
 logging.basicConfig(level=logging.DEBUG)
+AUTH_TOKEN_HEADER = "HTTP_X_AUTH_TOKEN"
+
+def _extract_id_from_header_location(response):
+    return response['location'].split('/')[-1]
 
 class MidonetClient:
 
-    def __init__(self, token, host='127.0.0.1', port=8080, app='midolmanj-mgmt'):
+    def __init__(self, host='127.0.0.1', port=8080, app='midolmanj-mgmt',
+                 token=None):
         self.h = httplib2.Http()
-        self.token = token
         self.host = host
         self.port = port
         self.app = app
+        self.token = token
 
     def _do_request(self, location, method, body='{}'):
 
@@ -33,7 +38,7 @@ class MidonetClient:
 
         response, content = self.h.request(url, method, body, headers={
         "Content-Type": "application/json",
-        "HTTP_X_AUTH_TOKEN": self.token} 
+        AUTH_TOKEN_HEADER: self.token} 
         )
 
         try:
@@ -52,7 +57,11 @@ class MidonetClient:
         if uuid:
             body ='{"id": "%s"}' % uuid
             print body
-        return self._do_request("tenants", "POST", body)
+        response, content = self._do_request("tenants", "POST", body)
+        if response['status'] != '201':
+            raise Exception("Create tenant failed(%s): %s" %
+                            (response['status'], content['message']))
+        return _extract_id_from_header_location(response)
 
     def delete_tenant(self, tenant_id):
         location = "tenants/%s" % tenant_id
@@ -109,7 +118,7 @@ class MidonetClient:
         location = 'bridges/%s/ports' % bridge_id
         return self._do_request(location, "GET")
 
-    def delete_bridge_port(self, port_id):
+    def delete_port(self, port_id):
         assert port_id != None
         location = 'ports/%s' % port_id
         return self._do_request(location, "DELETE")
@@ -120,12 +129,20 @@ class MidonetClient:
         assert name != None
         location = 'tenants/%s/routers' % tenant_id
         body ='{"name": "%s"}' % name
-        return self._do_request(location, "POST", body)
+        response, content = self._do_request(location, "POST", body)
+        if response['status'] != '201':
+            raise Exception("Create router failed(%s): %s" %
+                            (response['status'], content['message']))
+        return _extract_id_from_header_location(response)
 
     def get_router(self, router_id):
         assert router_id != None
         location = 'routers/%s' % router_id
         return self._do_request(location, "GET")
+
+    def tenant_router_exists(self, tenant_id, router_id):
+        response, content = self.get_router(router_id)
+        return (not content is None and content['tenantId'] == str(tenant_id))
 
     def list_router(self, tenant_id):
         assert tenant_id != None
@@ -142,7 +159,10 @@ class MidonetClient:
     def delete_router(self, router_id):
         assert router_id != None
         location = 'routers/%s' % router_id
-        return self._do_request(location, "DELETE")
+        response,content = self._do_request(location, "DELETE")
+        if response['status'] != '204':
+            raise Exception("Delete router failed(%s): %s" %
+                            (response['status'], content['message']))
  
     # router port
     def create_router_port(self, router_id, network_address,\
@@ -160,13 +180,14 @@ class MidonetClient:
             "localNetworkLength" : local_network_length
             }
         body = json.dumps(data)
-        return self._do_request(location, "POST", body)
+        response, content = self._do_request(location, "POST", body)
+        if response['status'] != '201':
+            raise Exception("Create router port failed(%s): %s" %
+                            (response['status'], content['message']))
+        return content['id']
 
-    def link_router(self, router_id, network_address,\
-                                       network_length, port_address,\
-                                       peer_port_address,\
-                                       peer_router_id):
-
+    def link_router(self, router_id, network_address, network_length,
+                    port_address, peer_port_address, peer_router_id):
         location = 'routers/%s/routers' % router_id
 
         data = {
@@ -178,17 +199,28 @@ class MidonetClient:
             }
 
         body = json.dumps(data)
-        return self._do_request(location, "POST", body)
-
+        response, content = self._do_request(location, "POST", body)
+        if response['status'] != '201':
+            raise Exception("Link router failed(%s): %s" %
+                            (response['status'], content['message']))
+        return content['portId'], content['peerPortId'] 
 
     def get_peer_router_detail(self, router_id, peer_router_id):
         location = 'routers/%s/routers/%s' % (router_id, peer_router_id)
         body = '{"peerRouterId":"%s"}'% peer_router_id
         return self._do_request(location, "GET", body)
 
-    def get_router_port(self, port_id):
+    def get_port(self, port_id):
         location = 'ports/%s' % port_id
-        return self._do_request(location, "GET")
+        response, content = self._do_request(location, "GET")
+        if response['status'] != '200':
+            raise Exception("Could not retrieve data (%s): %s" %
+                            (response['status'], content['message']))
+        return content
+
+    def get_port_device_id(self, port_id):
+        port = self.get_port(port_id)
+        return port['deviceId']
 
     def list_router_port(self, router_id):
         location = 'routers/%s/ports' % router_id
@@ -202,7 +234,17 @@ class MidonetClient:
 
     def get_vif(self, vif_id):
         location = 'vifs/%s' % vif_id
-        return self._do_request(location, "GET")
+        response, content = self._do_request(location, "GET")
+        if response['status'] != '200':
+            raise Exception("Could not retrieve data (%s): %s" %
+                            (response['status'], content['message']))
+        return content
+
+    def get_vif_device_and_port(self, vif_id):
+        vif = self.get_vif(vif_id)
+        port_id = vif['portId']
+        device_id = self.get_port_device_id(port_id)
+        return device_id, port_id
 
     def delete_vif(self, vif_id):
         location = 'vifs/%s' % vif_id
@@ -224,7 +266,11 @@ class MidonetClient:
                 "weight": weight}
 
         body = json.dumps(data)
-        return self._do_request(location, "POST", body)
+        response, content = self._do_request(location, "POST", body)
+        if response['status'] != '201':
+            raise Exception("Create route failed(%s): %s" %
+                            (response['status'], content['message']))
+        return _extract_id_from_header_location(response)
 
     def get_route(self, routes_id):
         location = 'routes/%s' % routes_id

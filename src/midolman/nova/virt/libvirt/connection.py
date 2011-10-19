@@ -35,8 +35,6 @@ from nova.virt import driver
 from nova.virt import images
 import nova.virt.libvirt.connection as libvirt_conn
 
-from midolman.nova import flags as mido_flags
-
 FLAGS = flags.FLAGS
 Template = None 
 LOG = logging.getLogger('nova.virt.libvirt_conn')
