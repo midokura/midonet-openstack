@@ -2,14 +2,6 @@
 
 nobase_python_PYTHON = \
 	midolman/__init__.py \
-	midolman/config.py \
-	midolman/openvswitch.py \
-	midolman/ieee_802.py \
-	midolman/tap.py \
-    midolman/agent/__init__.py \
-    midolman/agent/config.py \
-    midolman/agent/openvswitch.py \
-    midolman/agent/server.py \
     midolman/nova/api/openstack/contrib/networks.py \
     midolman/nova/api/openstack/contrib/__init__.py \
     midolman/nova/network/api.py \

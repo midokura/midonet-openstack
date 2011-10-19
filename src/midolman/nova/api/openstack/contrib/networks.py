@@ -20,6 +20,7 @@ from webob import exc
 from nova import utils
 from nova import db
 
+from nova import exception
 from nova import flags
 from nova import log as logging
 from nova.api.openstack import extensions
@@ -79,7 +80,11 @@ class NetworkController(object):
 
     def index(self, req):
         context = req.environ['nova.context']
-        net = db.network_get_all(context)
+        try:
+            net = db.network_get_all(context)
+        except exception.NoNetworksFound:
+            # No network found.
+            net = []
         return _translate_networks_view(net)
 
     def show(self, req, id):
@@ -89,9 +94,10 @@ class NetworkController(object):
 
     def delete(self, req, id):
         context = req.environ['nova.context']
-        network = db.network_get_by_uuid(context, id)
+        admin_context = context.elevated()
+        network = db.network_get(admin_context, id)
         cidr = network['cidr']
-        self.network_api.delete_network(context, cidr)
+        self.network_api.delete_network(admin_context, cidr)
         return {}
 
 

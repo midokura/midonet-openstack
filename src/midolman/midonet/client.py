@@ -184,7 +184,7 @@ class MidonetClient:
         if response['status'] != '201':
             raise Exception("Create router port failed(%s): %s" %
                             (response['status'], content['message']))
-        return content['id']
+        return _extract_id_from_header_location(response)
 
     def link_router(self, router_id, network_address, network_length,
                     port_address, peer_port_address, peer_router_id):

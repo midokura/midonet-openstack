@@ -18,6 +18,7 @@
 
 """VIF drivers for libvirt."""
 from nova import flags
+from nova import log as logging
 from nova import utils
 from nova.virt.libvirt.vif import LibvirtOpenVswitchDriver
 
@@ -26,11 +27,12 @@ flags.DEFINE_integer('mido_tap_mtu', 1500, 'MTU of tap')
 flags.DEFINE_string('mido_ovs_ext_id_key', 'midolman-vnet',
                     'OVS external ID key for midolman')
 
+LOG = logging.getLogger('midolman.nova.virt.libvirt.vif')
+
 class MidoNetVifDriver(LibvirtOpenVswitchDriver):
     """VIF driver for MidoNet."""
 
     def plug(self, instance, network, mapping):
-
         # Call the parent method to set up OVS
         result = super(self.__class__, self).plug(instance, network, mapping)
         dev = result['name']
@@ -42,5 +44,9 @@ class MidoNetVifDriver(LibvirtOpenVswitchDriver):
         # Set the external ID of the OVS port to the MidoNet port UUID.
         utils.execute('ovs-vsctl', 'set', 'port', dev,
                       'external_ids:%s=%s' % (FLAGS.mido_ovs_ext_id_key,
-                                              mapping['port_id']))
+                                              mapping['port_id']),
+                      run_as_root=True)
         return result
+
+    def unplug(self, instance, network, mapping):
+        super(self.__class__, self).unplug(instance, network, mapping)

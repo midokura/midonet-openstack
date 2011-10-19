@@ -94,7 +94,6 @@ class MidonetManager(FloatingIP, FlatManager):
         else:
             # otherwise, create network
             net_id = conn.create_router(tenant_id, label)
-
             # Link this router to the provider router via logical ports.
             _provider_port, tenant_port = conn.link_router(net_id,
                 FLAGS.mido_link_port_network_address,
@@ -104,7 +103,7 @@ class MidonetManager(FloatingIP, FlatManager):
                 FLAGS.mido_provider_router_id)
 
             conn.create_route(net_id, '0.0.0.0', 0, 'Normal', '0.0.0.0',
-                                   0, tenant_port, None, 100)
+                              0, tenant_port, None, 100)
 
         self.ipam.create_subnet(context, label, tenant_id, net_id, priority,
                                 cidr, gateway_v6, cidr_v6, dns1, dns2)
@@ -155,7 +154,8 @@ class MidonetManager(FloatingIP, FlatManager):
             self.ipam.allocate_fixed_ip(context, tenant_id, net_id, vif_rec)
 
             # Get the IP for this vif
-            ip = db.fixed_ip_get_by_virtual_interface(vif_rec['id'])[0]
+            ips = db.fixed_ip_get_by_virtual_interface(context, vif_rec['id'])
+            ip = ips[0]
 
             # talk to MidoNet API to create and attach port.
             network_address, network_len = network_ref['cidr'].split('/')
@@ -391,6 +391,6 @@ class MidonetManager(FloatingIP, FlatManager):
         project_id = context.project_id
         for (net_id, _i) in networks:
             self.ipam.verify_subnet_exists(context, project_id, net_id)
-            if not conn.router_exists(project_id, net_id):
+            if not conn.tenant_router_exists(project_id, net_id):
                 raise exception.NetworkNotFound(network_id=net_id)
 
