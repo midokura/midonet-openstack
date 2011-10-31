@@ -318,10 +318,11 @@ class MidonetManager(FloatingIP, FlatManager):
              floating_ip['fixed_ip']['address'])
                                                 
         # Set up a route in the provider router.
-        response, content = conn.create_route(FLAGS.mido_provider_router_id,
+        route = conn.create_route(FLAGS.mido_provider_router_id,
                                             '0.0.0.0', 0, 'Normal',
                                             floating_address, 32, 
                                             provider_router_port_id, None, 100)
+        LOG.debug("  route: %s", route)
 
     def disassociate_floating_ip(self, context, floating_address):
         """Disassociates a floating ip."""
