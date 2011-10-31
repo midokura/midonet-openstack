@@ -203,7 +203,7 @@ class MidonetClient:
         if response['status'] != '201':
             raise Exception("Link router failed(%s): %s" %
                             (response['status'], content['message']))
-        return content['portId'], content['peerPortId'] 
+        return content['peerPortId'], content['portId']
 
     def get_peer_router_detail(self, router_id, peer_router_id):
         location = 'routers/%s/routers/%s' % (router_id, peer_router_id)
