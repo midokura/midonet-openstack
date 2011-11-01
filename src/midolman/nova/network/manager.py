@@ -26,6 +26,7 @@ from nova.network.manager import RPCAllocateFixedIP
 from nova.network.manager import FloatingIP 
 from nova import flags
 from nova import exception
+from nova import rpc
 
 FLAGS = flags.FLAGS
 flags.DEFINE_string('mido_api_host', '127.0.0.1', 'API host of MidoNet')
@@ -146,6 +147,12 @@ class MidonetManager(FloatingIP, FlatManager):
 
             admin_context = context.elevated()
             network_ref = db.network_get_by_uuid(admin_context, net_id)
+
+            if network_ref['host']== None:
+                rpc.call(context, FLAGS.network_topic,
+                         {'method': 'set_network_host',
+                         'args': {'network_ref': network_ref}})
+
 
             vif_rec = manager.FlatManager.add_virtual_interface(self,
                 context, instance_id, network_ref['id'])
@@ -319,9 +326,9 @@ class MidonetManager(FloatingIP, FlatManager):
                                                 
         # Set up a route in the provider router.
         route = conn.create_route(FLAGS.mido_provider_router_id,
-                                            '0.0.0.0', 0, 'Normal',
-                                            floating_address, 32, 
-                                            provider_router_port_id, None, 100)
+                                  '0.0.0.0', 0, 'Normal',
+                                  floating_address, 32, 
+                                  provider_router_port_id, None, 100)
         LOG.debug("  route: %s", route)
 
     def disassociate_floating_ip(self, context, floating_address):
