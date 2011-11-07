@@ -148,11 +148,11 @@ class MidonetManager(FloatingIP, FlatManager):
             admin_context = context.elevated()
             network_ref = db.network_get_by_uuid(admin_context, net_id)
 
+            # Set host attribute in the networks table
             if network_ref['host']== None:
                 rpc.call(context, FLAGS.network_topic,
                          {'method': 'set_network_host',
                          'args': {'network_ref': network_ref}})
-
 
             vif_rec = manager.FlatManager.add_virtual_interface(self,
                 context, instance_id, network_ref['id'])
