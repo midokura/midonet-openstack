@@ -46,6 +46,17 @@ class MidoFloatingIPController(object):
             db.floating_ip_create(context,
                                   {'address': str(address)})
 
+    def index(self, req):
+        context = req.environ['nova.context']
+        floating_ips = db.floating_ip_get_all(context)
+        entries = []
+        for ip in floating_ips:
+            instance = None
+            if ip['fixed_ip']:
+                instance = ip['fixed_ip']['instance']['hostname']
+            entries.append({'host':ip['host'], 'address':ip['address'], 'instance': instance})
+        return {'floating_ips': entries}
+
     def delete_cidr(self, req, body=None):
         if not body:
             raise exc.HTTPUnprocessableEntity()
