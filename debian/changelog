@@ -1,3 +1,9 @@
+midolman-nova (11.11) natty; urgency=low
+
+  * Official Abaza Release
+
+ -- Tomoe Sugihara <tomoe@midokura.com>  Fri, 21 Oct 2011 17:39:14 +0900
+
 midolman-nova (0.1.0) unstable; urgency=low
 
   * Initial release.
