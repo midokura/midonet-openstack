@@ -268,6 +268,7 @@ class MidonetManager(FloatingIP, FlatManager):
                 LOG.error("Could not get network data for VIF %s" % interface_id)
                 continue
                                                      
+            conn.delete_vif(interface_id)
             conn.delete_port(port_id)
 
             self.ipam.deallocate_ips_by_vif(context, tenant_id,
