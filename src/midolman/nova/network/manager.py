@@ -113,6 +113,16 @@ class MidonetManager(FloatingIP, FlatManager):
         tenant_id = context.project_id
         net_id = self.ipam.get_network_id_by_cidr(
             context, fixed_range, tenant_id)
+
+        net_int_id = db.network_get_by_cidr(context, fixed_range)["id"]
+        fixed_ips = db.fixed_ip_get_all(context)
+
+        LOG.debug("fixed_range %r",  fixed_range)
+        LOG.debug("net_ref.id %r",  net_int_id)
+        LOG.debug("uuid %r",  net_id)
+        for fixed_ip in fixed_ips:
+            if fixed_ip["network_id"] == net_int_id:
+                db.fixed_ip_update(context, fixed_ip["address"], {'deleted': True})
         self.ipam.delete_subnets_by_net_id(context, net_id, tenant_id)
         conn = midonet.MidonetClient(FLAGS.mido_api_host, FLAGS.mido_api_port,
                                      FLAGS.mido_api_app,
