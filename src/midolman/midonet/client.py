@@ -280,10 +280,6 @@ class MidonetClient:
         location = 'routers/%s/routes' % router_id
         return self._do_request(location, "GET")
 
-    def list_port_route(self, port_id):
-        location = 'ports/%s/routes' % port_id
-        return self._do_request(location, "GET")
-
     def delete_route(self, routes_id):
         location = 'routes/%s' % routes_id
         return self._do_request(location, "DELETE")

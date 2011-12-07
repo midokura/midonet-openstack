@@ -209,10 +209,16 @@ class MidonetManager(FloatingIP, FlatManager):
                 # Continue on to try get network info for other VIFs.
                 LOG.error("Could not get network data for VIF %s" % vif['uuid'])
                 continue
-                                                     
-            (v4_subnet, v6_subnet) = self.ipam.get_subnets_by_net_id(context,
+            try:
+                (v4_subnet, v6_subnet) = self.ipam.get_subnets_by_net_id(
+                                                                     context,
                                                                      tenant_id,
                                                                      net_id)
+            except exception.NetworkNotFoundForUUID:
+                # for dangling instances
+                LOG.warn("Couldn't get network for uuid %r", net_id)
+                continue
+
             v4_ips = self.ipam.get_v4_ips_by_interface(context,
                                                        net_id, vif['uuid'],
                                                        project_id=tenant_id)
@@ -262,6 +268,9 @@ class MidonetManager(FloatingIP, FlatManager):
     def deallocate_for_instance(self, context, **kwargs):
         instance_id = kwargs.get('instance_id')
         tenant_id = kwargs.pop('project_id', None)
+
+        # disassociate floating ip if any
+        FloatingIP.deallocate_for_instance(self, context, **kwargs)
 
         admin_context = context.elevated()
         vifs = db.virtual_interface_get_by_instance(admin_context,
@@ -334,8 +343,11 @@ class MidonetManager(FloatingIP, FlatManager):
         response, content = conn.create_snat_rule(
              tenant_router_id, floating_address,
              floating_ip['fixed_ip']['address'])
-                                                
-        # Set up a route in the provider router.
+
+        # Add a route in the provider router.
+        conn = midonet.MidonetClient(FLAGS.mido_api_host, FLAGS.mido_api_port,
+                                     FLAGS.mido_api_app,
+                                     token=FLAGS.mido_admin_token)
         route = conn.create_route(FLAGS.mido_provider_router_id,
                                   '0.0.0.0', 0, 'Normal',
                                   floating_address, 32, 
@@ -360,7 +372,7 @@ class MidonetManager(FloatingIP, FlatManager):
 
         conn = midonet.MidonetClient(FLAGS.mido_api_host, FLAGS.mido_api_port,
                                      FLAGS.mido_api_app,
-                                     token=context.auth_token)
+                                     token=FLAGS.mido_admin_token)
 
         # Get the link between this router ID to the provider router ID. 
         response, content = conn.get_peer_router_detail(tenant_router_id,
@@ -368,15 +380,19 @@ class MidonetManager(FloatingIP, FlatManager):
         provider_router_port_id = content['peerPortId'] 
 
         # Get routes to this port.
-        response, content = conn.list_port_route(provider_router_port_id)
+        response, content = conn.list_route(FLAGS.mido_provider_router_id)
+
+        LOG.debug("routes: %r", content)
        
         # Go through the routes.
-        for route in content:
-            # Check if the destination IP is set to the floating IP.
-            if route['dstNetworkAddr'] == floating_address:
-                # Remove this route.
-                response, _content = conn.delete_route(route['id'])
-                LOG.info("route deleted: %s",  route['id'])
+        if not content == None:
+            for route in content:
+                # Check if the destination IP is set to the floating IP.
+                if route['dstNetworkAddr'] == floating_address and \
+                   route['nextHopPort'] == provider_router_port_id:
+                    # Remove this route.
+                    response, _content = conn.delete_route(route['id'])
+                    LOG.info("Delete route(%s) on port (%s)", route['id'], provider_router_port_id)
 
         # Get the NAT PREROUTING chain ID
         response, content = conn.get_chain_by_name(tenant_router_id, 'nat', 'pre_routing')
