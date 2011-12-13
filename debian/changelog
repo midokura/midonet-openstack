@@ -1,8 +1,32 @@
+midolman-nova (11.12~a4) natty; urgency=low
+
+  * Pre-Release 4 for Abaza
+
+ -- Midokura <midokura@mido-iida-1>  Wed, 07 Dec 2011 15:47:47 +0900
+
+midolman-nova (11.12~a3) natty; urgency=low
+
+  * Pre-Release 3 for Abaza
+
+ -- Midokura <midokura@mido-iida-1>  Wed, 30 Nov 2011 16:44:02 +0900
+
+midolman-nova (11.12~a2) natty; urgency=low
+
+  * Pre-Release 2 for Abaza
+
+ -- Midokura <midokura@mido-iida-1>  Thu, 10 Nov 2011 12:13:12 +0900
+
+midolman-nova (11.12~a1) natty; urgency=low
+
+  * Pre-Release 1 for Abaza
+
+ -- Midokura <midokura@mido-iida-1>  Wed, 09 Nov 2011 11:26:15 +0900
+
 midolman-nova (11.11) natty; urgency=low
 
-  * Official Abaza Release
+  * Release for BI demo
 
- -- Tomoe Sugihara <tomoe@midokura.com>  Fri, 21 Oct 2011 17:39:14 +0900
+ -- Midokura <midokura@mido-iida-1>  Wed, 09 Nov 2011 11:26:13 +0900
 
 midolman-nova (0.1.0) unstable; urgency=low
 
