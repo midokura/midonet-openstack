@@ -234,7 +234,7 @@ class MidonetManager(FloatingIP, FlatManager):
 
             network_dict = {
                 'cidr': v4_subnet['cidr'],
-                'injected': True,
+                'injected': False,
                 'multi_host': False}
 
             info = {
