@@ -48,6 +48,10 @@ class MidonetPlugin(QuantumPluginBase):
         a symbolic name.
         """
         LOG.debug("create_network() called\n")
+        dummy_network = {'net-id': "fake-network",
+                'net-name': "fake-name",
+                'net-op-status': OperationalStatus}
+        return dummy_network
 
     def delete_network(self, tenant_id, net_id):
         """
