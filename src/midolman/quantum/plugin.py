@@ -15,12 +15,19 @@
 #    under the License.
 # @author: Tomoe Sugihara, Midokura Japan, KK
 
+import ConfigParser
 import logging
+import sys
+import webob.exc as exc
+
 from quantum.quantum_plugin_base import QuantumPluginBase
 from quantum.api.api_common import OperationalStatus
+from quantum.common.config import find_config_file
+
+from midonet.client import MidonetClient
 
 
-LOG = logging.getLogger('midolman.quantum.plugins.MidonetPlugin')
+LOG = logging.getLogger('MidonetPlugin')
 
 
 class MidonetPlugin(QuantumPluginBase):
@@ -28,6 +35,35 @@ class MidonetPlugin(QuantumPluginBase):
     """
     This is a skeleton that is copied from QuantumEchoPlugin in SamplePlugin.
     """
+
+    def __init__(self):
+        config = ConfigParser.ConfigParser()
+
+        config_file = find_config_file({"plugin":"midonet"}, None, "midonet_plugin.ini")
+        if not config_file:
+            raise Exception("Configuration file \"%s\" doesn't exist" % "midonet_plugin.ini")
+
+        # Read config values
+        config.read(config_file)
+        midonet_uri = config.get("midonet", "midonet_uri")
+        self.tenant_router_name_format = config.get("midonet", "tenant_router_name_format")
+
+        keystone_tokens_endpoint = config.get("keystone", "keystone_tokens_endpoint")
+        admin_user = config.get("keystone", "admin_user")
+        admin_password = config.get("keystone", "admin_password")
+        admin_tenant = config.get("keystone", "admin_tenant")
+
+        LOG.debug("------midonet plugin config:")
+        LOG.debug("midonet_uri: %r", midonet_uri)
+        LOG.debug("keystone_tokens_endpoint: %r", keystone_tokens_endpoint)
+        LOG.debug("admin_user: %r", admin_user)
+        LOG.debug("admin_password: %r", admin_password)
+        LOG.debug("admin_tenant: %r",  admin_tenant)
+
+        self.mido_conn = MidonetClient(midonet_uri=midonet_uri,
+                                       keystone_tokens_endpoint=keystone_tokens_endpoint,
+                                       username=admin_user, password=admin_password, 
+                                       tenant_name=admin_tenant)
 
     def get_all_networks(self, tenant_id, filter_opts=None):
         """
@@ -47,11 +83,45 @@ class MidonetPlugin(QuantumPluginBase):
         Creates a new Virtual Network, and assigns it
         a symbolic name.
         """
-        LOG.debug("create_network() called\n")
-        dummy_network = {'net-id': "fake-network",
-                'net-name': "fake-name",
+        LOG.debug("create_network() called, tenant_id: %r, net_name: %r", 
+                    tenant_id, net_name)
+        LOG.debug("create_network() called, kwargs: %r", kwargs)
+
+        try:
+            self.mido_conn.tenants().get(tenant_id)
+
+        # TODO: fix mgmt to return 404 back and change here
+        except exc.HTTPInternalServerError:
+            LOG.debug("Creating tenant: %r", tenant_id)
+            self.mido_conn.tenants().create(tenant_id)
+        except Exception as e:
+            LOG.debug("Create tenant in midonet got exception: %r", e)
+            raise e
+
+        tenant_router_name = self.tenant_router_name_format % tenant_id
+        LOG.debug("Midonet Tenant Router Name: %r", tenant_router_name)
+        # do get routers to see if the tenant already has its tenant router.
+        response, content = self.mido_conn.routers().list(tenant_id)
+
+        found = False
+        for r in content:
+            if r['name'] == tenant_router_name:
+                LOG.debug("Tenant Router found")
+                found = True
+
+        # if not found, create the tenant router
+        if not found:
+            response, content = self.mido_conn.routers().create(
+                                    tenant_id, tenant_router_name)
+
+        # create a bridge for this network
+        response, content = self.mido_conn.bridges().create(tenant_id, net_name)
+        response, content = self.mido_conn.get(
+                                    response['location'])
+        network = {'net-id': content['id'],
+                'net-name': content['name'],
                 'net-op-status': OperationalStatus}
-        return dummy_network
+        return network
 
     def delete_network(self, tenant_id, net_id):
         """
