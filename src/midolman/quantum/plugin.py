@@ -90,8 +90,7 @@ class MidonetPlugin(QuantumPluginBase):
         try:
             self.mido_conn.tenants().get(tenant_id)
 
-        # TODO: fix mgmt to return 404 back and change here
-        except exc.HTTPInternalServerError:
+        except exc.HTTPNotFound:
             LOG.debug("Creating tenant: %r", tenant_id)
             self.mido_conn.tenants().create(tenant_id)
         except Exception as e:
