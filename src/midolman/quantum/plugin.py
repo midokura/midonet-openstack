@@ -46,6 +46,8 @@ class MidonetPlugin(QuantumPluginBase):
         # Read config values
         config.read(config_file)
         midonet_uri = config.get('midonet', 'midonet_uri')
+        self.provider_router_id = config.get('midonet', 'provider_router_id')
+        self.provider_router_name = config.get('midonet', 'provider_router_name')
         self.tenant_router_name_format = config.get('midonet', 'tenant_router_name_format')
 
         keystone_tokens_endpoint = config.get('keystone', 'keystone_tokens_endpoint')
@@ -55,6 +57,7 @@ class MidonetPlugin(QuantumPluginBase):
 
         LOG.debug('------midonet plugin config:')
         LOG.debug('midonet_uri: %r', midonet_uri)
+        LOG.debug('provider_router_id: %r', self.provider_router_id)
         LOG.debug('keystone_tokens_endpoint: %r', keystone_tokens_endpoint)
         LOG.debug('admin_user: %r', admin_user)
         LOG.debug('admin_password: %r', admin_password)
@@ -64,6 +67,19 @@ class MidonetPlugin(QuantumPluginBase):
                                        keystone_tokens_endpoint=keystone_tokens_endpoint,
                                        username=admin_user, password=admin_password, 
                                        tenant_name=admin_tenant)
+
+        # See if the provider tenant and router exist. If not, create them.
+        try:
+            self.mido_conn.tenants().get(admin_tenant)
+        except exc.HTTPNotFound:
+            LOG.debug('Admin tenant(%r) not found. Creating...' % admin_tenant)
+            self.mido_conn.tenants().create(admin_tenant)
+        try:
+            self.mido_conn.routers().get(admin_tenant, self.provider_router_id)
+        except LookupError as e:
+            LOG.debug('Provider router(%r) not found. Creating...' % self.provider_router_id)
+            self.mido_conn.routers().create(admin_tenant, 
+                             self.provider_router_name, self.provider_router_id)
 
     def get_all_networks(self, tenant_id, filter_opts=None):
         """
