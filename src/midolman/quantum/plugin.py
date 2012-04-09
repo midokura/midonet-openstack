@@ -45,20 +45,20 @@ class MidonetPlugin(QuantumPluginBase):
 
         # Read config values
         config.read(config_file)
-        midonet_uri = config.get("midonet", "midonet_uri")
-        self.tenant_router_name_format = config.get("midonet", "tenant_router_name_format")
+        midonet_uri = config.get('midonet', 'midonet_uri')
+        self.tenant_router_name_format = config.get('midonet', 'tenant_router_name_format')
 
-        keystone_tokens_endpoint = config.get("keystone", "keystone_tokens_endpoint")
-        admin_user = config.get("keystone", "admin_user")
-        admin_password = config.get("keystone", "admin_password")
-        admin_tenant = config.get("keystone", "admin_tenant")
+        keystone_tokens_endpoint = config.get('keystone', 'keystone_tokens_endpoint')
+        admin_user = config.get('keystone', 'admin_user')
+        admin_password = config.get('keystone', 'admin_password')
+        admin_tenant = config.get('keystone', 'admin_tenant')
 
-        LOG.debug("------midonet plugin config:")
-        LOG.debug("midonet_uri: %r", midonet_uri)
-        LOG.debug("keystone_tokens_endpoint: %r", keystone_tokens_endpoint)
-        LOG.debug("admin_user: %r", admin_user)
-        LOG.debug("admin_password: %r", admin_password)
-        LOG.debug("admin_tenant: %r",  admin_tenant)
+        LOG.debug('------midonet plugin config:')
+        LOG.debug('midonet_uri: %r', midonet_uri)
+        LOG.debug('keystone_tokens_endpoint: %r', keystone_tokens_endpoint)
+        LOG.debug('admin_user: %r', admin_user)
+        LOG.debug('admin_password: %r', admin_password)
+        LOG.debug('admin_tenant: %r',  admin_tenant)
 
         self.mido_conn = MidonetClient(midonet_uri=midonet_uri,
                                        keystone_tokens_endpoint=keystone_tokens_endpoint,
