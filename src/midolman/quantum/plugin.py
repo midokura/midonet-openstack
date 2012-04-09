@@ -32,10 +32,6 @@ LOG = logging.getLogger('MidonetPlugin')
 
 class MidonetPlugin(QuantumPluginBase):
 
-    """
-    This is a skeleton that is copied from QuantumEchoPlugin in SamplePlugin.
-    """
-
     def __init__(self):
         config = ConfigParser.ConfigParser()
 
@@ -53,7 +49,7 @@ class MidonetPlugin(QuantumPluginBase):
         keystone_tokens_endpoint = config.get('keystone', 'keystone_tokens_endpoint')
         admin_user = config.get('keystone', 'admin_user')
         admin_password = config.get('keystone', 'admin_password')
-        admin_tenant = config.get('keystone', 'admin_tenant')
+        self.admin_tenant = config.get('keystone', 'admin_tenant')
 
         LOG.debug('------midonet plugin config:')
         LOG.debug('midonet_uri: %r', midonet_uri)
@@ -61,24 +57,24 @@ class MidonetPlugin(QuantumPluginBase):
         LOG.debug('keystone_tokens_endpoint: %r', keystone_tokens_endpoint)
         LOG.debug('admin_user: %r', admin_user)
         LOG.debug('admin_password: %r', admin_password)
-        LOG.debug('admin_tenant: %r',  admin_tenant)
+        LOG.debug('admin_tenant: %r',  self.admin_tenant)
 
         self.mido_conn = MidonetClient(midonet_uri=midonet_uri,
                                        keystone_tokens_endpoint=keystone_tokens_endpoint,
                                        username=admin_user, password=admin_password, 
-                                       tenant_name=admin_tenant)
+                                       tenant_name=self.admin_tenant)
 
         # See if the provider tenant and router exist. If not, create them.
         try:
-            self.mido_conn.tenants().get(admin_tenant)
+            self.mido_conn.tenants().get(self.admin_tenant)
         except exc.HTTPNotFound:
-            LOG.debug('Admin tenant(%r) not found. Creating...' % admin_tenant)
-            self.mido_conn.tenants().create(admin_tenant)
+            LOG.debug('Admin tenant(%r) not found. Creating...' % self.admin_tenant)
+            self.mido_conn.tenants().create(self.admin_tenant)
         try:
-            self.mido_conn.routers().get(admin_tenant, self.provider_router_id)
+            self.mido_conn.routers().get(self.admin_tenant, self.provider_router_id)
         except LookupError as e:
             LOG.debug('Provider router(%r) not found. Creating...' % self.provider_router_id)
-            self.mido_conn.routers().create(admin_tenant, 
+            self.mido_conn.routers().create(self.admin_tenant, 
                              self.provider_router_name, self.provider_router_id)
 
     def get_all_networks(self, tenant_id, filter_opts=None):
@@ -101,7 +97,7 @@ class MidonetPlugin(QuantumPluginBase):
         """
         LOG.debug("create_network() called, tenant_id: %r, net_name: %r", 
                     tenant_id, net_name)
-        LOG.debug("create_network() called, kwargs: %r", kwargs)
+        LOG.debug("                            kwargs: %r", kwargs)
 
         try:
             self.mido_conn.tenants().get(tenant_id)
@@ -119,22 +115,54 @@ class MidonetPlugin(QuantumPluginBase):
         response, content = self.mido_conn.routers().list(tenant_id)
 
         found = False
+        tenant_router_id = None
         for r in content:
             if r['name'] == tenant_router_name:
                 LOG.debug("Tenant Router found")
                 found = True
+                tenant_router_id = r['id']
 
-        # if not found, create the tenant router
+        # if not found, create the tenant router and link it to the provider's
         if not found:
             response, content = self.mido_conn.routers().create(
                                     tenant_id, tenant_router_name)
+            response, content = self.mido_conn.get(
+                                    response['location'])
+            tenant_router_id = content['id']
+            
+            # Create a link from the provider router
+            # TODO: might as well remove hardcoded addresses and length
+            response, content = self.mido_conn.routers().link_router_create(
+                                        self.admin_tenant,
+                                        self.provider_router_id,
+                                        '10.0.0.0', 30,
+                                        '10.0.0.1', '10.0.0.2', 
+                                        tenant_router_id)
 
         # create a bridge for this network
         response, content = self.mido_conn.bridges().create(tenant_id, net_name)
         response, content = self.mido_conn.get(
                                     response['location'])
-        network = {'net-id': content['id'],
-                'net-name': content['name'],
+        bridge_id = content['id']
+        net_name = content['name']
+
+        gateway = kwargs.get('network').get('gateway')
+        cidr = kwargs.get('network').get('cidr')
+        net_addr, length = cidr.split('/')
+        length = int(length)
+        if not gateway:
+            # pick .1 as a gateway address in the cidr
+            gateway =  ".".join(net_addr.split('.')[0:3] + ['1'])
+
+        # Make a link from the tenant router to the bridge	
+        response, content = self.mido_conn.routers().link_bridge_create(
+                                        self.admin_tenant,
+                                        self.provider_router_id,
+                                        net_addr, length, gateway,
+                                        bridge_id)
+
+        network = {'net-id': bridge_id,
+                'net-name': net_name,
                 'net-op-status': OperationalStatus}
         return network
 
