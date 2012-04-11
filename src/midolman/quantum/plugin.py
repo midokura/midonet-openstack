@@ -156,7 +156,34 @@ class MidonetPlugin(QuantumPluginBase):
         Deletes the network with the specified network identifier
         belonging to the specified tenant.
         """
-        LOG.debug("delete_network() called\n")
+        LOG.debug("delete_network() called. tenant_id: %r, net_id: %r", tenant_id, net_id)
+
+        tenant_router_name = self.tenant_router_name_format % tenant_id
+        LOG.debug("Midonet Tenant Router Name: %r", tenant_router_name)
+        # do get routers to see if the tenant already has its tenant router.
+        response, content = self.mido_conn.routers().list(tenant_id)
+
+        tenant_router_id = None
+        for r in content:
+            if r['name'] == tenant_router_name:
+                LOG.debug("Tenant Router found")
+                tenant_router_id = r['id']
+
+        # Delete link between the tenant router and the bridge 
+        try:
+            response, content = self.mido_conn.routers().link_bridge_delete(
+                                                     tenant_id, tenant_router_id, net_id)
+        except Exception as e:
+            LOG.debug("Delete link got an exception: %r. Keep going.", e)
+            pass
+
+        # Delete the bridge
+        try:
+            response, content = self.mido_conn.bridges().delete(tenant_id, net_id)
+        except Exception as e:
+            LOG.debug("Delete bridge got an exception: %r. Keep going.", e)
+            pass
+
 
     def get_network_details(self, tenant_id, net_id):
         """
@@ -168,12 +195,13 @@ class MidonetPlugin(QuantumPluginBase):
     def update_network(self, tenant_id, net_id, **kwargs):
         LOG.debug("update_network() called")
 
-    def get_all_ports(self, tenant_id, net_id):
+    def get_all_ports(self, tenant_id, net_id, **kwargs):
         """
         Retrieves all port identifiers belonging to the
         specified Virtual Network.
         """
-        LOG.debug("get_all_ports() called\n")
+        LOG.debug("get_all_ports() called: tenant_id: %r, net_id:%r, kwargs:%r", tenant_id, net_id, kwargs)
+        return []
 
     def create_port(self, tenant_id, net_id, **kwargs):
         """
