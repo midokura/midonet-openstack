@@ -146,21 +146,6 @@ class MidonetPlugin(QuantumPluginBase):
         bridge_id = content['id']
         net_name = content['name']
 
-        gateway = kwargs.get('network').get('gateway')
-        cidr = kwargs.get('network').get('cidr')
-        net_addr, length = cidr.split('/')
-        length = int(length)
-        if not gateway:
-            # pick .1 as a gateway address in the cidr
-            gateway =  ".".join(net_addr.split('.')[0:3] + ['1'])
-
-        # Make a link from the tenant router to the bridge	
-        response, content = self.mido_conn.routers().link_bridge_create(
-                                        self.admin_tenant,
-                                        self.provider_router_id,
-                                        net_addr, length, gateway,
-                                        bridge_id)
-
         network = {'net-id': bridge_id,
                 'net-name': net_name,
                 'net-op-status': OperationalStatus}
