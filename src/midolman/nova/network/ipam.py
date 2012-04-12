@@ -26,9 +26,10 @@ from nova.network import manager
 
 from nova.network.quantum.nova_ipam_lib import QuantumNovaIPAMLib
 from midonet.client import MidonetClient
-
+from midolman.nova.network import midonet_connection
 
 LOG = logging.getLogger(__name__)
+FLAGS = flags.FLAGS
 
 
 def get_ipam_lib(net_man):
@@ -78,33 +79,7 @@ class MidonetNovaIPAMLib(QuantumNovaIPAMLib):
         print "Debug: gateway:", network['gateway']
         print "Debug: cidr:", cidr
 
-        #TODO(tomoe): put these in nova.conf
-        # Midonet related settings
-        midonet_uri = 'http://localhost:8080/midolmanj-mgmt'
-        provider_router_id = '00112233-0011-0011-0011-001122334455'
-        provider_router_name = 'MidonetProviderRouter'
-        tenant_router_name_format = 'MidonetTenantRouter-%s'
-
-        # Keystone related settings
-        keystone_tokens_endpoint = 'http://localhost:5000/v2.0/tokens'
-        admin_user = 'admin'
-        admin_password = 'gogomid0'
-        admin_tenant = 'admin'
-
-        print '------midonet plugin config:'
-        print 'midonet_uri: %r'% midonet_uri
-        print 'provider_router_id: %r' % provider_router_id
-        print 'keystone_tokens_endpoint: %r' % keystone_tokens_endpoint
-        print 'admin_user: %r' % admin_user
-        print 'admin_password: %r' % admin_password
-        print 'admin_tenant: %r' %  admin_tenant
-        print "-----------------------------------"
-
-
-        mido_conn = MidonetClient(midonet_uri=midonet_uri,
-                     keystone_tokens_endpoint=keystone_tokens_endpoint,
-                     username=admin_user, password=admin_password,
-                     tenant_name=admin_tenant)
+        mido_conn = midonet_connection.get_connection()
 
         gateway = network['gateway']
         net_addr, length = cidr.split('/')
@@ -113,7 +88,7 @@ class MidonetNovaIPAMLib(QuantumNovaIPAMLib):
 
         if not tenant_id:
             tenant_id = 'default'
-        tenant_router_name = tenant_router_name_format % tenant_id
+        tenant_router_name = FLAGS.midonet_tenant_router_name_format % tenant_id
 
         response, content = mido_conn.routers().list(tenant_id)
         tenant_router_id = None
