@@ -200,8 +200,11 @@ class MidonetPlugin(QuantumPluginBase):
         Retrieves all port identifiers belonging to the
         specified Virtual Network.
         """
-        LOG.debug("get_all_ports() called: tenant_id: %r, net_id:%r, kwargs:%r", tenant_id, net_id, kwargs)
-        return []
+        LOG.debug("get_all_ports() called: tenant_id: %r, net_id:%r, kwargs:%r", 
+                    tenant_id, net_id, kwargs)
+        response, ports = self.mido_conn.bridge_ports().list(tenant_id, net_id)
+        return [{'port-id': str(p['id'])} for p in ports]
+
 
     def create_port(self, tenant_id, net_id, port_state=None, **kwargs):
 
