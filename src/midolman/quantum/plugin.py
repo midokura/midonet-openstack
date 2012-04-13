@@ -203,11 +203,27 @@ class MidonetPlugin(QuantumPluginBase):
         LOG.debug("get_all_ports() called: tenant_id: %r, net_id:%r, kwargs:%r", tenant_id, net_id, kwargs)
         return []
 
-    def create_port(self, tenant_id, net_id, **kwargs):
+    def create_port(self, tenant_id, net_id, port_state=None, **kwargs):
+
         """
         Creates a port on the specified Virtual Network.
         """
-        LOG.debug("create_port() called\n")
+        LOG.debug("create_port() called: tenant_id:%r, net_id:%r, port_state:%r, kwargs:%r",
+                     tenant_id, net_id, port_state, kwargs)
+
+        response, bridge = self.mido_conn.bridges().get(tenant_id, net_id)
+        bridge_uuid = bridge['id']
+        response, content = self.mido_conn.bridge_ports().create(tenant_id, bridge_uuid)
+        response, bridge_port = self.mido_conn.get(response['location'])
+        LOG.debug('Bridge port=%r is created on bridge=%r', bridge_port['id'], bridge_uuid)
+
+        port = {'port-id': bridge_port['id'],
+                'port-state': 'ACTIVE',
+                'port-op-status': 'UP',
+                'net-id': net_id}
+
+        return port
+
 
     def delete_port(self, tenant_id, net_id, port_id):
         """
@@ -216,7 +232,7 @@ class MidonetPlugin(QuantumPluginBase):
         the remote interface is first un-plugged and then the port
         is deleted.
         """
-        LOG.debug("delete_port() called\n")
+        LOG.debug("delete_port() called. tenant_id=%r, net_id=%r, port_id=%r", tenant_id, net_id, port_id)
 
     def update_port(self, tenant_id, net_id, port_id, **kwargs):
         """
@@ -231,12 +247,16 @@ class MidonetPlugin(QuantumPluginBase):
         """
         LOG.debug("get_port_details() called\n")
 
-    def plug_interface(self, tenant_id, net_id, port_id, remote_interface_id):
+    def plug_interface(self, tenant_id, net_id, port_id, vif_id):
         """
         Attaches a remote interface to the specified port on the
         specified Virtual Network.
         """
-        LOG.debug("plug_interface() called\n")
+        LOG.debug("plug_interface() called: tenant_id=%r, net_id=%r, port_id=%r, vif_id=%r",
+                    tenant_id, net_id, port_id, vif_id)
+        response, content = self.mido_conn.vifs().create(vif_id, port_id)
+        response, vif = self.mido_conn.get(response['location'])
+        LOG.debug("vif=%r is created", vif)
 
     def unplug_interface(self, tenant_id, net_id, port_id):
         """
