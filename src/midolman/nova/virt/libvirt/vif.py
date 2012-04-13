@@ -1,6 +1,6 @@
 # vim: tabstop=4 shiftwidth=4 softtabstop=4
 
-# Copyright (C) 2011 Midokura KK
+# Copyright (C) 2011 Midokura Japan KK
 #
 # All Rights Reserved.
 #
@@ -16,35 +16,57 @@
 #    License for the specific language governing permissions and limitations
 #    under the License.
 
-"""VIF drivers for libvirt."""
+"""VIF driver for Midonet."""
 from nova import flags
 from nova import log as logging
 from nova import utils
+from nova.openstack.common import cfg
 from nova.virt.libvirt.vif import LibvirtOpenVswitchDriver
 
-FLAGS = flags.FLAGS
-flags.DEFINE_integer('mido_tap_mtu', 1500, 'MTU of tap')
-flags.DEFINE_string('mido_ovs_ext_id_key', 'midolman-vnet',
-                    'OVS external ID key for midolman')
+from midolman.nova.network import midonet_connection
 
+
+midonet_opts = [
+    cfg.IntOpt('midonet_tap_mtu',
+               default=1500,
+               help='Mtu of tap'),
+    cfg.StrOpt('midonet_ovs_ext_id_key',
+               default='midolman-vnet',
+               help='OVS external ID key for midolman')
+]
+
+FLAGS = flags.FLAGS
+FLAGS.register_opts(midonet_opts)
 LOG = logging.getLogger('midolman.nova.virt.libvirt.vif')
 
-class MidoNetVifDriver(LibvirtOpenVswitchDriver):
-    """VIF driver for MidoNet."""
+
+class MidonetVifDriver(LibvirtOpenVswitchDriver):
+    """VIF driver for Midonet."""
+
+    # Super class doesn't have ctor, so it doesn't need to call super()
+    def __init__(self):
+        self.mido_conn = midonet_connection.get_connection()
 
     def plug(self, instance, network, mapping):
+        LOG.debug('MidonetVifDriver plug() called. instance:%r, network: %r, mapping: %r', instance, network, mapping)
+        print "network: ", network
+        print "mapping: ", mapping
         # Call the parent method to set up OVS
         result = super(self.__class__, self).plug(instance, network, mapping)
         dev = result['name']
 
         # Not ideal to do this every time, but set the MTU to something big.
-        utils.execute('ip', 'link', 'set', dev, 'mtu', FLAGS.mido_tap_mtu,
+        utils.execute('ip', 'link', 'set', dev, 'mtu', FLAGS.midonet_tap_mtu,
                       run_as_root=True)
 
-        # Set the external ID of the OVS port to the MidoNet port UUID.
+        # Set the external ID of the OVS port to the Midonet port UUID.
+
+        response, vif = self.mido_conn.vifs().get(mapping['vif_uuid'])
+        print 'vif=%r is added to the ovs bridger.' % vif
+
         utils.execute('ovs-vsctl', 'set', 'port', dev,
-                      'external_ids:%s=%s' % (FLAGS.mido_ovs_ext_id_key,
-                                              mapping['port_id']),
+                      'external_ids:%s=%s' % (FLAGS.midonet_ovs_ext_id_key,
+                                              vif['portId']),
                       run_as_root=True)
         return result
 
