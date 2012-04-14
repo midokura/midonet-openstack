@@ -235,7 +235,8 @@ class MidonetPlugin(QuantumPluginBase):
         the remote interface is first un-plugged and then the port
         is deleted.
         """
-        LOG.debug("delete_port() called. tenant_id=%r, net_id=%r, port_id=%r", tenant_id, net_id, port_id)
+        LOG.debug("delete_port() called. tenant_id=%r, net_id=%r, port_id=%r", 
+                    tenant_id, net_id, port_id)
 
     def update_port(self, tenant_id, net_id, port_id, **kwargs):
         """
@@ -248,7 +249,17 @@ class MidonetPlugin(QuantumPluginBase):
         This method allows the user to retrieve a remote interface
         that is attached to this particular port.
         """
-        LOG.debug("get_port_details() called\n")
+        LOG.debug("get_port_details() called: tenant_id=%r, net_id=%r, port_id=%r",
+                    tenant_id, net_id, port_id)
+        response, bridge_port = self.mido_conn.bridge_ports().get(tenant_id, net_id, port_id)
+        LOG.debug("Got Bridge port=%r", bridge_port)
+
+        port = {'port-id': bridge_port['id'],
+                'port-state': 'ACTIVE',
+                'port-op-status': 'UP',
+                'net-id': net_id,
+                'attachment': bridge_port['vifId']}
+        return port
 
     def plug_interface(self, tenant_id, net_id, port_id, vif_id):
         """
