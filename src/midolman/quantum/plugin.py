@@ -237,6 +237,8 @@ class MidonetPlugin(QuantumPluginBase):
         """
         LOG.debug("delete_port() called. tenant_id=%r, net_id=%r, port_id=%r", 
                     tenant_id, net_id, port_id)
+        response, content = self.mido_conn.bridge_ports().delete(tenant_id, net_id, port_id)
+        LOG.debug('delete_port: response=%r, content=%r', response, content)
 
     def update_port(self, tenant_id, net_id, port_id, **kwargs):
         """
@@ -277,7 +279,11 @@ class MidonetPlugin(QuantumPluginBase):
         Detaches a remote interface from the specified port on the
         specified Virtual Network.
         """
-        LOG.debug("unplug_interface() called\n")
+        LOG.debug("unplug_interface() called: tenant_id=%r, net_id=%r, port_id=%r",
+                    tenant_id, net_id, port_id)
+        response, bridge_port = self.mido_conn.bridge_ports().get(tenant_id, net_id, port_id)
+        LOG.debug('bridge_port: %r', bridge_port)
+        response, content  = self.mido_conn.vifs().delete(bridge_port['vifId'])
 
     supported_extension_aliases = ["FOXNSOX"]
 
