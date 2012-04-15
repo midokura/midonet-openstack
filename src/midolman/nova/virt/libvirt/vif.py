@@ -17,6 +17,8 @@
 #    under the License.
 
 """VIF driver for Midonet."""
+from nova import context
+from nova import db
 from nova import flags
 from nova import log as logging
 from nova import utils
@@ -59,11 +61,27 @@ class MidonetVifDriver(LibvirtOpenVswitchDriver):
         utils.execute('ip', 'link', 'set', dev, 'mtu', FLAGS.midonet_tap_mtu,
                       run_as_root=True)
 
-        # Set the external ID of the OVS port to the Midonet port UUID.
+        # Get tenant id from db
+        network_ref = db.network_get_by_uuid(context.get_admin_context(), network['id'])
+        tenant_id = network_ref['project_id']
+        if not tenant_id:
+            tenant_id = FLAGS.quantum_default_tenant_id
 
+        # params for creating dhcp host 
+        bridge_id = network['id']
+        subnet = network['cidr'].replace('/', '_')
+        mac = mapping['mac']
+        ip = mapping['ips'][0]['ip']
+        name = mapping['vif_uuid']
+
+        response, vif = self.mido_conn.dhcp_hosts().create(tenant_id, bridge_id, subnet,
+                                                           mac, ip, name)
+
+        # Get port id corresponding to the vif
         response, vif = self.mido_conn.vifs().get(mapping['vif_uuid'])
         print 'vif=%r is added to the ovs bridger.' % vif
 
+        # Set the external ID of the OVS port to the Midonet port UUID.
         utils.execute('ovs-vsctl', 'set', 'port', dev,
                       'external_ids:%s=%s' % (FLAGS.midonet_ovs_ext_id_key,
                                               vif['portId']),
