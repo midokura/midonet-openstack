@@ -87,7 +87,7 @@ class MidonetNovaIPAMLib(QuantumNovaIPAMLib):
         bridge_id = quantum_net_id
 
         if not tenant_id:
-            tenant_id = 'default'
+            tenant_id = FLAGS.quantum_default_tenant_id
         tenant_router_name = FLAGS.midonet_tenant_router_name_format % tenant_id
 
         response, content = mido_conn.routers().list(tenant_id)
