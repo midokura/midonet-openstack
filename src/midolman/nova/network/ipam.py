@@ -88,6 +88,12 @@ class MidonetNovaIPAMLib(QuantumNovaIPAMLib):
 
         if not tenant_id:
             tenant_id = FLAGS.quantum_default_tenant_id
+
+        # Add dhcp information to the bridge
+        response, content = mido_conn.dhcps().create(tenant_id, bridge_id,
+                                                     net_addr, length, gateway)
+
+        # Search tenant router
         tenant_router_name = FLAGS.midonet_tenant_router_name_format % tenant_id
 
         response, content = mido_conn.routers().list(tenant_id)
