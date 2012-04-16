@@ -43,35 +43,11 @@ class MidonetNovaIPAMLib(QuantumNovaIPAMLib):
                       quantum_net_id, priority, cidr=None,
                       gateway=None, gateway_v6=None, cidr_v6=None,
                       dns1=None, dns2=None):
-        """Re-use the basic FlatManager create_networks method to
-           initialize the networks and fixed_ips tables in Nova DB.
-
-           Also stores a few more fields in the networks table that
-           are needed by Quantum but not the FlatManager.
-        """
-        admin_context = context.elevated()
-        subnet_size = len(netaddr.IPNetwork(cidr))
-        networks = manager.FlatManager.create_networks(self.net_manager,
-                    admin_context, label, cidr,
-                    False, 1, subnet_size, cidr_v6, gateway,
-                    gateway_v6, quantum_net_id, None, dns1, dns2,
-                    ipam=True)
-        #TODO(tr3buchet): refactor passing in the ipam key so that
-        # it's no longer required. The reason it exists now is because
-        # nova insists on carving up IP blocks. What ends up happening is
-        # we create a v4 and an identically sized v6 block. The reason
-        # the quantum tests passed previosly is nothing prevented an
-        # incorrect v6 address from being assigned to the wrong subnet
-
-        if len(networks) != 1:
-            raise Exception(_("Error creating network entry"))
-
-        network = networks[0]
-        net = {"project_id": tenant_id,
-               "priority": priority,
-               "uuid": quantum_net_id}
-        db.network_update(admin_context, network['id'], net)
-
+        super(self.__class__, self).create_subnet(context, label, tenant_id,
+                                                  quantum_net_id, priority,
+                                                  cidr, gateway, gateway_v6,
+                                                  cidr_v6, dns1, dns2)
+        network = db.network_get_by_uuid(context.elevated(), quantum_net_id)
         # NOTE(tomoe): for some reason, LOG.debug doesn't work here...
         print "Debug: label: ", label
         print "Debug: teannt_id:", tenant_id
