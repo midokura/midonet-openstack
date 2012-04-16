@@ -35,18 +35,23 @@ class MidonetPlugin(QuantumPluginBase):
     def __init__(self):
         config = ConfigParser.ConfigParser()
 
-        config_file = find_config_file({"plugin":"midonet"}, None, "midonet_plugin.ini")
+        config_file = find_config_file({"plugin":"midonet"}, None, 
+                                        "midonet_plugin.ini")
         if not config_file:
-            raise Exception("Configuration file \"%s\" doesn't exist" % "midonet_plugin.ini")
+            raise Exception("Configuration file \"%s\" doesn't exist" %
+                             "midonet_plugin.ini")
 
         # Read config values
         config.read(config_file)
         midonet_uri = config.get('midonet', 'midonet_uri')
         self.provider_router_id = config.get('midonet', 'provider_router_id')
-        self.provider_router_name = config.get('midonet', 'provider_router_name')
-        self.tenant_router_name_format = config.get('midonet', 'tenant_router_name_format')
+        self.provider_router_name = config.get('midonet', 
+                                               'provider_router_name')
+        self.tenant_router_name_format = config.get('midonet', 
+                                                    'tenant_router_name_format')
 
-        keystone_tokens_endpoint = config.get('keystone', 'keystone_tokens_endpoint')
+        keystone_tokens_endpoint = config.get('keystone', 
+                                              'keystone_tokens_endpoint')
         admin_user = config.get('keystone', 'admin_user')
         admin_password = config.get('keystone', 'admin_password')
         self.admin_tenant = config.get('keystone', 'admin_tenant')
@@ -59,21 +64,25 @@ class MidonetPlugin(QuantumPluginBase):
         LOG.debug('admin_password: %r', admin_password)
         LOG.debug('admin_tenant: %r',  self.admin_tenant)
 
-        self.mido_conn = MidonetClient(midonet_uri=midonet_uri,
-                                       keystone_tokens_endpoint=keystone_tokens_endpoint,
-                                       username=admin_user, password=admin_password, 
-                                       tenant_name=self.admin_tenant)
+        self.mido_conn = MidonetClient(
+                            midonet_uri=midonet_uri,
+                            keystone_tokens_endpoint=keystone_tokens_endpoint,
+                            username=admin_user, password=admin_password, 
+                            tenant_name=self.admin_tenant)
 
         # See if the provider tenant and router exist. If not, create them.
         try:
             self.mido_conn.tenants().get(self.admin_tenant)
         except exc.HTTPNotFound:
-            LOG.debug('Admin tenant(%r) not found. Creating...' % self.admin_tenant)
+            LOG.debug('Admin tenant(%r) not found. Creating...' %
+                                                            self.admin_tenant)
             self.mido_conn.tenants().create(self.admin_tenant)
         try:
-            self.mido_conn.routers().get(self.admin_tenant, self.provider_router_id)
+            self.mido_conn.routers().get(self.admin_tenant,
+                                         self.provider_router_id)
         except LookupError as e:
-            LOG.debug('Provider router(%r) not found. Creating...' % self.provider_router_id)
+            LOG.debug('Provider router(%r) not found. Creating...' %
+                                                        self.provider_router_id)
             self.mido_conn.routers().create(self.admin_tenant, 
                              self.provider_router_name, self.provider_router_id)
 
@@ -125,9 +134,8 @@ class MidonetPlugin(QuantumPluginBase):
         # if not found, create the tenant router and link it to the provider's
         if not found:
             response, content = self.mido_conn.routers().create(
-                                    tenant_id, tenant_router_name)
-            response, content = self.mido_conn.get(
-                                    response['location'])
+                                                 tenant_id, tenant_router_name)
+            response, content = self.mido_conn.get(response['location'])
             tenant_router_id = content['id']
             
             # Create a link from the provider router
@@ -156,7 +164,8 @@ class MidonetPlugin(QuantumPluginBase):
         Deletes the network with the specified network identifier
         belonging to the specified tenant.
         """
-        LOG.debug("delete_network() called. tenant_id: %r, net_id: %r", tenant_id, net_id)
+        LOG.debug("delete_network() called. tenant_id=%r, net_id=%r", 
+                                                            tenant_id, net_id)
 
         tenant_router_name = self.tenant_router_name_format % tenant_id
         LOG.debug("Midonet Tenant Router Name: %r", tenant_router_name)
@@ -172,14 +181,15 @@ class MidonetPlugin(QuantumPluginBase):
         # Delete link between the tenant router and the bridge 
         try:
             response, content = self.mido_conn.routers().link_bridge_delete(
-                                                     tenant_id, tenant_router_id, net_id)
+                                           tenant_id, tenant_router_id, net_id)
         except Exception as e:
             LOG.debug("Delete link got an exception: %r. Keep going.", e)
             pass
 
         # Delete the bridge
         try:
-            response, content = self.mido_conn.bridges().delete(tenant_id, net_id)
+            response, content = self.mido_conn.bridges().delete(
+                                                             tenant_id, net_id)
         except Exception as e:
             LOG.debug("Delete bridge got an exception: %r. Keep going.", e)
             pass
@@ -200,33 +210,33 @@ class MidonetPlugin(QuantumPluginBase):
         Retrieves all port identifiers belonging to the
         specified Virtual Network.
         """
-        LOG.debug("get_all_ports() called: tenant_id: %r, net_id:%r, kwargs:%r", 
-                    tenant_id, net_id, kwargs)
+        LOG.debug("get_all_ports() called: tenant_id=%r, net_id=%r, kwargs=%r",
+                                                      tenant_id, net_id, kwargs)
         response, ports = self.mido_conn.bridge_ports().list(tenant_id, net_id)
         return [{'port-id': str(p['id'])} for p in ports]
-
 
     def create_port(self, tenant_id, net_id, port_state=None, **kwargs):
 
         """
         Creates a port on the specified Virtual Network.
         """
-        LOG.debug("create_port() called: tenant_id:%r, net_id:%r, port_state:%r, kwargs:%r",
-                     tenant_id, net_id, port_state, kwargs)
+        LOG.debug("create_port() called: tenant_id=%r, net_id=%r",
+                  teant_id, net_id)
+        LOG.debug("     port_state=%r, kwargs:%r", port_state, kwargs)
 
         response, bridge = self.mido_conn.bridges().get(tenant_id, net_id)
         bridge_uuid = bridge['id']
-        response, content = self.mido_conn.bridge_ports().create(tenant_id, bridge_uuid)
+        response, content = self.mido_conn.bridge_ports().create(
+                                                         tenant_id, bridge_uuid)
         response, bridge_port = self.mido_conn.get(response['location'])
-        LOG.debug('Bridge port=%r is created on bridge=%r', bridge_port['id'], bridge_uuid)
+        LOG.debug('Bridge port=%r is created on bridge=%r', 
+                                                bridge_port['id'], bridge_uuid)
 
         port = {'port-id': bridge_port['id'],
                 'port-state': 'ACTIVE',
                 'port-op-status': 'UP',
                 'net-id': net_id}
-
         return port
-
 
     def delete_port(self, tenant_id, net_id, port_id):
         """
@@ -236,8 +246,9 @@ class MidonetPlugin(QuantumPluginBase):
         is deleted.
         """
         LOG.debug("delete_port() called. tenant_id=%r, net_id=%r, port_id=%r", 
-                    tenant_id, net_id, port_id)
-        response, content = self.mido_conn.bridge_ports().delete(tenant_id, net_id, port_id)
+                                                    tenant_id, net_id, port_id)
+        response, content = self.mido_conn.bridge_ports().delete(
+                                                    tenant_id, net_id, port_id)
         LOG.debug('delete_port: response=%r, content=%r', response, content)
 
     def update_port(self, tenant_id, net_id, port_id, **kwargs):
@@ -251,9 +262,12 @@ class MidonetPlugin(QuantumPluginBase):
         This method allows the user to retrieve a remote interface
         that is attached to this particular port.
         """
-        LOG.debug("get_port_details() called: tenant_id=%r, net_id=%r, port_id=%r",
-                    tenant_id, net_id, port_id)
-        response, bridge_port = self.mido_conn.bridge_ports().get(tenant_id, net_id, port_id)
+        LOG.debug("get_port_details() called: tenant_id=%r, net_id=%r",
+                  tenant_id, net_id)
+        LOG.debug("    port_id=%r", port_id)
+
+        response, bridge_port = self.mido_conn.bridge_ports().get(
+                                                    tenant_id, net_id, port_id)
         LOG.debug("Got Bridge port=%r", bridge_port)
 
         port = {'port-id': bridge_port['id'],
@@ -268,8 +282,9 @@ class MidonetPlugin(QuantumPluginBase):
         Attaches a remote interface to the specified port on the
         specified Virtual Network.
         """
-        LOG.debug("plug_interface() called: tenant_id=%r, net_id=%r, port_id=%r, vif_id=%r",
-                    tenant_id, net_id, port_id, vif_id)
+        LOG.debug("plug_interface() called: tenant_id=%r, net_id=%r",
+                  tenant_id, net_id)
+        LOG.debug("     port_id=%r, vif_id=%r", port_id, vif_id)
         response, content = self.mido_conn.vifs().create(vif_id, port_id)
         response, vif = self.mido_conn.get(response['location'])
         LOG.debug("vif=%r is created", vif)
@@ -279,9 +294,11 @@ class MidonetPlugin(QuantumPluginBase):
         Detaches a remote interface from the specified port on the
         specified Virtual Network.
         """
-        LOG.debug("unplug_interface() called: tenant_id=%r, net_id=%r, port_id=%r",
-                    tenant_id, net_id, port_id)
-        response, bridge_port = self.mido_conn.bridge_ports().get(tenant_id, net_id, port_id)
+        LOG.debug("unplug_interface() called: tenant_id=%r, net_id=%r",
+                  tenant_id, net_id)
+        LOG.debug("    port_id=%r", port_id)
+        response, bridge_port = self.mido_conn.bridge_ports().get(
+                                                     tenant_id, net_id, port_id)
         LOG.debug('bridge_port: %r', bridge_port)
         response, content  = self.mido_conn.vifs().delete(bridge_port['vifId'])
 
