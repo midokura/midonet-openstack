@@ -28,7 +28,8 @@ from nova.network.quantum.nova_ipam_lib import QuantumNovaIPAMLib
 from midonet.client import MidonetClient
 from midolman.nova.network import midonet_connection
 
-LOG = logging.getLogger(__name__)
+# Add 'nova' prefix for nova's logging setting
+LOG = logging.getLogger('nova...' + __name__)
 FLAGS = flags.FLAGS
 
 
@@ -48,12 +49,11 @@ class MidonetNovaIPAMLib(QuantumNovaIPAMLib):
                                                   cidr, gateway, gateway_v6,
                                                   cidr_v6, dns1, dns2)
         network = db.network_get_by_uuid(context.elevated(), quantum_net_id)
-        # NOTE(tomoe): for some reason, LOG.debug doesn't work here...
-        print "Debug: label: ", label
-        print "Debug: teannt_id:", tenant_id
-        print "Debug: quantum_net_id:", quantum_net_id
-        print "Debug: gateway:", network['gateway']
-        print "Debug: cidr:", cidr
+        LOG.debug("label: %r ", label)
+        LOG.debug("teannt_id: %r", tenant_id)
+        LOG.debug("quantum_net_id: %r", quantum_net_id)
+        LOG.debug("gateway: %r", network['gateway'])
+        LOG.debug("cidr: %r", cidr)
 
         mido_conn = midonet_connection.get_connection()
 
@@ -76,7 +76,7 @@ class MidonetNovaIPAMLib(QuantumNovaIPAMLib):
         tenant_router_id = None
         for r in content:
             if r['name'] == tenant_router_name:
-                LOG.debug("Tenant Router found")
+                LOG.debug("Tenant Router found: %r", r)
                 found = True
                 tenant_router_id = r['id']
         assert found
