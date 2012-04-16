@@ -221,7 +221,7 @@ class MidonetPlugin(QuantumPluginBase):
         Creates a port on the specified Virtual Network.
         """
         LOG.debug("create_port() called: tenant_id=%r, net_id=%r",
-                  teant_id, net_id)
+                  tenant_id, net_id)
         LOG.debug("     port_state=%r, kwargs:%r", port_state, kwargs)
 
         response, bridge = self.mido_conn.bridges().get(tenant_id, net_id)
