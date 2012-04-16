@@ -39,7 +39,8 @@ midonet_opts = [
 
 FLAGS = flags.FLAGS
 FLAGS.register_opts(midonet_opts)
-LOG = logging.getLogger('midolman.nova.virt.libvirt.vif')
+# Add 'nova' prefix for nova's logging setting
+LOG = logging.getLogger('nova...' + __name__)
 
 
 class MidonetVifDriver(LibvirtOpenVswitchDriver):
@@ -50,9 +51,8 @@ class MidonetVifDriver(LibvirtOpenVswitchDriver):
         self.mido_conn = midonet_connection.get_connection()
 
     def plug(self, instance, network, mapping):
-        LOG.debug('MidonetVifDriver plug() called. instance:%r, network: %r, mapping: %r', instance, network, mapping)
-        print "network: ", network
-        print "mapping: ", mapping
+        LOG.debug('MidonetVifDriver plug() called. instance:%r, network: %r, mapping: %r', 
+                  instance, network, mapping)
         # Call the parent method to set up OVS
         result = super(self.__class__, self).plug(instance, network, mapping)
         dev = result['name']
@@ -79,7 +79,7 @@ class MidonetVifDriver(LibvirtOpenVswitchDriver):
 
         # Get port id corresponding to the vif
         response, vif = self.mido_conn.vifs().get(mapping['vif_uuid'])
-        print 'vif=%r is added to the ovs bridger.' % vif
+        LOG.debug('vif=%r is added to the ovs bridger.', vif)
 
         # Set the external ID of the OVS port to the Midonet port UUID.
         utils.execute('ovs-vsctl', 'set', 'port', dev,
