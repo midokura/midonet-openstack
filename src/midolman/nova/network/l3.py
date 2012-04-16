@@ -23,8 +23,8 @@ from nova.network.l3 import L3Driver
 
 from midolman.nova.network import midonet_connection
 
-
-LOG = logging.getLogger(__name__)
+# Add 'nova' prefix for nova's logging setting
+LOG = logging.getLogger('nova...' + __name__)
 FLAGS = flags.FLAGS
 
 
@@ -57,8 +57,6 @@ class MidonetL3Driver(L3Driver):
     def add_floating_ip(self, floating_ip, fixed_ip, l3_interface_id):
         LOG.debug('add_floating_ip() called: floating_ip=%r, fixed_ip=%r, l3_interface_id=%r',
                      floating_ip, fixed_ip, l3_interface_id)
-        print 'add_floating_ip() called: floating_ip=%r, fixed_ip=%r, l3_interface_id=%r' % \
-                                                      (floating_ip, fixed_ip, l3_interface_id)
 
         admin_context = context.get_admin_context()
         fixed_ip_ref = db.fixed_ip_get_by_address(admin_context, fixed_ip)
@@ -68,20 +66,20 @@ class MidonetL3Driver(L3Driver):
 
         # Get network ref
         network_ref = db.network_get(admin_context, network_id)
-        print network_ref
+        LOG.debug('network_ref: %r',  network_ref)
 
         tenant_id = network_ref['project_id'] or FLAGS.quantum_default_tenant_id
 
-        print 'tenant_id ', tenant_id
+        LOG.debug('tenant_id: %r', tenant_id)
         # Search tenant router
         tenant_router_name = FLAGS.midonet_tenant_router_name_format % tenant_id
 
         response, routers = self.mido_conn.routers().list(tenant_id)
-        print routers
+        LOG.debug('routers: %r', routers)
         tenant_router_id = None
         for r in routers:
             if r['name'] == tenant_router_name:
-                LOG.debug("Tenant Router found")
+                LOG.debug("Tenant Router found: %r", r)
                 found = True
                 tenant_router_id = r['id']
         assert found
@@ -89,7 +87,7 @@ class MidonetL3Driver(L3Driver):
         response, link_router = self.mido_conn.routers().link_router_get(
                                                             tenant_id, tenant_router_id,
                                                             FLAGS.midonet_provider_router_id)
-        print 'link_router: ', link_router
+        LOG.debug('link_router: %r', link_router)
         provider_router_port_id = link_router['peerPortId']
 
         # Add a route to the fixed ip in the provider
@@ -102,52 +100,50 @@ class MidonetL3Driver(L3Driver):
                                         100,                    # weight
                                         provider_router_port_id,# next hop port
                                         None)                   # next hop gateway
-        print 'Router created: ', response
+        LOG.debug('Route created: %r', response)
 
         response, chains = self.mido_conn.chains().list(tenant_id, tenant_router_id)
-        print 'Chains: ', chains
+        LOG.debug('chains: %r', chains)
         for c in chains:
             if c['name'] == 'pre_routing':
                 pre_routing_chain_id = c['id']
             if c['name'] == 'post_routing':
                 post_routing_chain_id = c['id']
 
-        print 'pre_routing_chain_id ', pre_routing_chain_id
-        print 'post_routing_chain_id ', post_routing_chain_id
+        LOG.debug('pre_routing_chain_id %r', pre_routing_chain_id)
+        LOG.debug('post_routing_chain_id %r', post_routing_chain_id)
 
         # Add DNAT rule to the tenant router
         response, content = self.mido_conn.rules().create_dnat_rule(
                                         tenant_id, tenant_router_id,
                                         pre_routing_chain_id, 
                                         floating_ip, fixed_ip)
-        print 'Create DNAT ', response
+        LOG.debug('Create DNAT: %r ', response)
 
         # Add SNAT rule to the tenant router
         response, content = self.mido_conn.rules().create_snat_rule(
                                         tenant_id, tenant_router_id,
                                         post_routing_chain_id, 
                                         floating_ip, fixed_ip)
-        print 'Create NAT ', response
+        LOG.debug('Create NAT: %r', response)
 
     def remove_floating_ip(self, floating_ip, fixed_ip, l3_interface_id):
         LOG.debug('remove_floating_ip() called: floating_ip=%r, fixed_ip=%r, l3_interface_id=%r',
                      floating_ip, fixed_ip, l3_interface_id)
-        print 'remove_floating_ip() called: floating_ip=%r, fixed_ip=%r, l3_interface_id=%r'% \
-                                                           (floating_ip, fixed_ip, l3_interface_id)
 
 
         # Get routes in the provider router
         response, routes = self.mido_conn.routes().list(
                                         FLAGS.midonet_admin_tenant,
                                         FLAGS.midonet_provider_router_id)
-        print 'Routes: ', routes
+        LOG.debug('Routes: %r', routes)
 
         # Look for the route to the fixed_ip in the provider router
         for r in routes:
             if r['dstNetworkAddr'] == fixed_ip and r['dstNetworkLength'] == 32:
                 route_id = r['id']
             
-        print 'Route ID: ', route_id
+        LOG.debug('Route ID to delete: %r', route_id)
 
         # Delete the route in the provider router
         response, content = self.mido_conn.routes().delete(
@@ -166,16 +162,16 @@ class MidonetL3Driver(L3Driver):
 
         # Get network ref
         network_ref = db.network_get(admin_context, network_id)
-        print network_ref
+        LOG.debug('network_ref: %r', network_ref)
 
         tenant_id = network_ref['project_id'] or FLAGS.quantum_default_tenant_id
 
-        print 'tenant_id ', tenant_id
+        LOG.debug('tenant_id: %r', tenant_id)
         # Search tenant router
         tenant_router_name = FLAGS.midonet_tenant_router_name_format % tenant_id
 
         response, routers = self.mido_conn.routers().list(tenant_id)
-        print routers
+        LOG.debug('routers: %r', routers)
         tenant_router_id = None
         for r in routers:
             if r['name'] == tenant_router_name:
@@ -185,52 +181,51 @@ class MidonetL3Driver(L3Driver):
         assert found
 
         response, chains = self.mido_conn.chains().list(tenant_id, tenant_router_id)
-        print 'Chains: ', chains
+        LOG.debug('Chains: %r', chains)
         for c in chains:
             if c['name'] == 'pre_routing':
                 pre_routing_chain_id = c['id']
             if c['name'] == 'post_routing':
                 post_routing_chain_id = c['id']
 
-        print 'pre_routing_chain_id ', pre_routing_chain_id
-        print 'post_routing_chain_id ', post_routing_chain_id
-
+        LOG.debug('pre_routing_chain_id %r', pre_routing_chain_id)
+        LOG.debug('post_routing_chain_id %r', post_routing_chain_id)
        
         # DNAT
         response, rules = self.mido_conn.rules().list(
                                         tenant_id, tenant_router_id,
                                         pre_routing_chain_id)
-        print 'Rules in pre_routing ', rules
+        LOG.debug('Rules in pre_routing %r', rules)
         found = False
         for r in rules:
             if r['nwDstAddress'] == floating_ip and r['nwDstLength'] == 32:
                 found = True
-                print 'DNAT rule Found ', r
+                LOG.debug('DNAT rule to delete found: %r', r)
                 dnat_id = r['id']
         assert found
 
         response, content = self.mido_conn.rules().delete(
                                         tenant_id, tenant_router_id,
                                         pre_routing_chain_id, dnat_id)
-        print 'Delete dnat ', response 
+        LOG.debug('Delete dnat: %r', response) 
 
         # SNAT
         response, rules = self.mido_conn.rules().list(
                                         tenant_id, tenant_router_id,
                                         post_routing_chain_id)
-        print 'Rules in post_routing ', rules
+        LOG.debug('Rules in post_routing: %r', rules)
 
         found = False
         for r in rules:
             if r['nwSrcAddress'] == fixed_ip and r['nwSrcLength'] == 32:
                 found = True
-                print 'SNAT rule Found ', r
+                LOG.debug('SNAT rule to delete found: %r', r)
                 snat_id = r['id']
         assert found
         response, content = self.mido_conn.rules().delete(
                                         tenant_id, tenant_router_id,
                                         post_routing_chain_id, snat_id)
-        print 'Delete dnat ', response 
+        LOG.debug('Delete dnat: %r', response)
 
     def add_vpn(self, public_ip, port, private_ip):
         LOG.debug('add_vpn() called: public_ip=%r, port=%r, private_ip=%r', public_ip, port, private_ip)
