@@ -39,8 +39,8 @@ midonet_opts = [
 
     # Keystone related settings
 
-    cfg.StrOpt('midonet_keystone_tokens_endpoint',
-               default = 'http://localhost:5000/v2.0/tokens',
+    cfg.StrOpt('midonet_keystone_uri',
+               default = 'http://localhost:5000/v2.0/',
                help='Keystone API endpoinnt for generating token for admin.'),
     cfg.StrOpt('midonet_admin_user',
                default = 'admin',
@@ -63,7 +63,7 @@ def get_connection():
     global mido_conn
     if mido_conn == None:
         mido_conn = MidonetClient(midonet_uri=FLAGS.midonet_uri,
-                 keystone_tokens_endpoint=FLAGS.midonet_keystone_tokens_endpoint,
+                 ks_uri=FLAGS.midonet_keystone_uri,
                  username=FLAGS.midonet_admin_user, password=FLAGS.midonet_admin_password,
                  tenant_name=FLAGS.midonet_admin_tenant)
     return mido_conn
