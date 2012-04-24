@@ -50,8 +50,8 @@ class MidonetPlugin(QuantumPluginBase):
         self.tenant_router_name_format = config.get('midonet', 
                                                     'tenant_router_name_format')
 
-        keystone_tokens_endpoint = config.get('keystone', 
-                                              'keystone_tokens_endpoint')
+        keystone_uri = config.get('keystone', 
+                                              'keystone_uri')
         admin_user = config.get('keystone', 'admin_user')
         admin_password = config.get('keystone', 'admin_password')
         self.admin_tenant = config.get('keystone', 'admin_tenant')
@@ -59,14 +59,14 @@ class MidonetPlugin(QuantumPluginBase):
         LOG.debug('------midonet plugin config:')
         LOG.debug('midonet_uri: %r', midonet_uri)
         LOG.debug('provider_router_id: %r', self.provider_router_id)
-        LOG.debug('keystone_tokens_endpoint: %r', keystone_tokens_endpoint)
+        LOG.debug('keystone_uri: %r', keystone_uri)
         LOG.debug('admin_user: %r', admin_user)
         LOG.debug('admin_password: %r', admin_password)
         LOG.debug('admin_tenant: %r',  self.admin_tenant)
 
         self.mido_conn = MidonetClient(
                             midonet_uri=midonet_uri,
-                            keystone_tokens_endpoint=keystone_tokens_endpoint,
+                            ks_uri=keystone_uri,
                             username=admin_user, password=admin_password, 
                             tenant_name=self.admin_tenant)
 
