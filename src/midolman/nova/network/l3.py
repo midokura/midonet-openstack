@@ -96,7 +96,7 @@ class MidonetL3Driver(L3Driver):
                                         FLAGS.midonet_provider_router_id,
                                         'Normal',               # Type
                                         '0.0.0.0', 0,           # src (any) 
-                                        fixed_ip, 32,           # dest (fixed_ip)
+                                        floating_ip, 32,        # dest
                                         100,                    # weight
                                         provider_router_port_id,# next hop port
                                         None)                   # next hop gateway
