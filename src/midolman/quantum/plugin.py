@@ -147,6 +147,18 @@ class MidonetPlugin(QuantumPluginBase):
                                         '10.0.0.1', '10.0.0.2', 
                                         tenant_router_id)
 
+            tenant_uplink_port = content['peerPortId']
+
+            response, content = self.mido_conn.routes().create(
+                                        tenant_id,
+                                        tenant_router_id,
+                                        'Normal',          # type
+                                        '0.0.0.0', 0,      # source
+                                        '0.0.0.0', 0,      # destination
+                                        100,               # weight
+                                        tenant_uplink_port,# next hop port
+                                        None)              # next hop gateway
+
         # create a bridge for this network
         response, content = self.mido_conn.bridges().create(tenant_id, net_name)
         response, content = self.mido_conn.get(
