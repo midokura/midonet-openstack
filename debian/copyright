@@ -1,6 +1,6 @@
 This work was packaged for Debian by:
 
-    Dan Dumitriu <dan@midokura.com> on Fri, 9 Sep 2011 14:22:00 +0900
+    Tomoe Sugihara <tomoe@midokura.com> on Fri, 27 April 2012 10:50:00 +0900
 
 It was downloaded from:
 
@@ -8,11 +8,11 @@ It was downloaded from:
 
 Upstream Author(s):
 
-    Ryu Ishimoto <ryu@midokura.com>
+    Tomoe Sugihara <tomoe@midokura.com>
 
 Copyright:
 
-    Copyright (C) 2011 Midokura KK
+    Copyright (C) 2012 Midokura Japan K.K.
 
 License:
 
@@ -20,4 +20,4 @@ License:
 
 The Debian packaging is:
 
-    Copyright (C) 2011 Midokura KK
+    Copyright (C) 2012 Midokura Japan K.K.

@@ -1,8 +1,9 @@
 Source: midolman-nova
 Section: non-free/python
 Priority: extra
-Maintainer: Ryu Ishimoto <ryu@midokura.com>
-Uploaders: Adam Johnson <adam@midokura.com>,
+Maintainer: Tomoe Sugihara <tomoe@midokura.com>
+Uploaders: Ryu Ishimoto <ryu@midokura.com>,
+ Adam Johnson <adam@midokura.com>,
  Giuseppe de Candia <pino@midokura.com>,
  Jacob Mandelson <jacob@midokura.jp>,
  Dan Dumitriu <dan@midokura.com>,
