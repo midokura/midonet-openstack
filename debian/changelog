@@ -1,3 +1,9 @@
+midolman-nova (12.06~1) oneiric; urgency=low
+
+  * pre Babuza ~1
+
+ -- Tomoe Sugihara <tomoe@midokura.com>  Fri, 27 Apr 2012 09:57:50 +0900
+
 midolman-nova (11.11) natty; urgency=low
 
   * Official Abaza Release
