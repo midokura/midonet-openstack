@@ -23,6 +23,7 @@ import webob.exc as exc
 from quantum.quantum_plugin_base import QuantumPluginBase
 from quantum.api.api_common import OperationalStatus
 from quantum.common.config import find_config_file
+from quantum.common import exceptions as exception
 
 from midonet.client import MidonetClient
 
@@ -218,10 +219,22 @@ class MidonetPlugin(QuantumPluginBase):
 
     def get_network_details(self, tenant_id, net_id):
         """
-        Deletes the Virtual Network belonging to a the
-        spec
+        Get network information
         """
-        LOG.debug("get_network_details() called\n")
+        LOG.debug("get_network_details() called: tenant_id=%r, net_id=%r",
+                  tenant_id, net_id)
+
+        res = {}
+        try:
+            response, bridge = self.mido_conn.bridges().get(tenant_id, net_id)
+            LOG.debug("Bridge: %r", bridge)
+            res = {'net-id': bridge['id'], 'net-name': bridge['name'],
+                   'net-op-status': 'UP'} 
+        except LookupError as e:
+            LOG.debug("Bridge %r not found", net_id)
+            raise exception.NetworkNotFound(net_id=net_id)
+
+        return res
 
     def update_network(self, tenant_id, net_id, **kwargs):
         LOG.debug("update_network() called")
