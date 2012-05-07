@@ -94,10 +94,19 @@ class MidonetPlugin(QuantumPluginBase):
         """
         LOG.debug("get_all_networks() called with tenant_id %r", tenant_id)
 
-        dummy_network = {'net-id': "fake-network",
-                'net-name': "fake-name",
-                'net-op-status': OperationalStatus}
-        return [dummy_network]
+        bridges = []
+        try:
+            response, bridges = self.mido_conn.bridges().list(tenant_id)
+            LOG.debug("Bridges: %r", bridges)
+        except exc.HTTPNotFound as e:
+            LOG.debug(e)
+            LOG.debug("Returning empty list for non-existent tenant")
+
+        res = []
+        for b in bridges:
+            res.append({'net-id': b['id'], 'net-name': b['name'],
+                        'net-op-status': OperationalStatus}) 
+        return res
 
     def create_network(self, tenant_id, net_name, **kwargs):
         """
