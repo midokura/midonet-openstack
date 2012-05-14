@@ -99,7 +99,7 @@ class MidonetL3Driver(L3Driver):
                                         floating_ip, 32,        # dest
                                         100,                    # weight
                                         provider_router_port_id,# next hop port
-                                        None)                   # next hop gateway
+                                        None)                   # next hop gateway  #TODO to put peer IP addr
         LOG.debug('Route created: %r', response)
 
         response, chains = self.mido_conn.chains().list(tenant_id, tenant_router_id)
@@ -139,17 +139,22 @@ class MidonetL3Driver(L3Driver):
         LOG.debug('Routes: %r', routes)
 
         # Look for the route to the fixed_ip in the provider router
+        route_id = None
         for r in routes:
-            if r['dstNetworkAddr'] == fixed_ip and r['dstNetworkLength'] == 32:
+            if r['dstNetworkAddr'] == floating_ip and r['dstNetworkLength'] == 32:
                 route_id = r['id']
             
         LOG.debug('Route ID to delete: %r', route_id)
 
         # Delete the route in the provider router
-        response, content = self.mido_conn.routes().delete(
+        try:
+            response, content = self.mido_conn.routes().delete(
                                         FLAGS.midonet_admin_tenant,
                                         FLAGS.midonet_provider_router_id,
                                         route_id)
+        except Exception as e:
+            LOG.info('Delete route got an exception %r', e)
+            LOG.debug('Keep going.')
         #
         # Now take care of NAT rules
         #
@@ -202,12 +207,16 @@ class MidonetL3Driver(L3Driver):
                 found = True
                 LOG.debug('DNAT rule to delete found: %r', r)
                 dnat_id = r['id']
-        assert found
+        LOG.debug('DNAT rules found? %r', found)
 
-        response, content = self.mido_conn.rules().delete(
+        try:
+            response, content = self.mido_conn.rules().delete(
                                         tenant_id, tenant_router_id,
                                         pre_routing_chain_id, dnat_id)
-        LOG.debug('Delete dnat: %r', response) 
+            LOG.debug('Delete dnat: %r', response) 
+        except Exception as e:
+            LOG.info('Delete DNAT rule got an exception %r', e)
+            LOG.debug('Keep going.')
 
         # SNAT
         response, rules = self.mido_conn.rules().list(
@@ -222,10 +231,15 @@ class MidonetL3Driver(L3Driver):
                 LOG.debug('SNAT rule to delete found: %r', r)
                 snat_id = r['id']
         assert found
-        response, content = self.mido_conn.rules().delete(
+
+        try:
+            response, content = self.mido_conn.rules().delete(
                                         tenant_id, tenant_router_id,
                                         post_routing_chain_id, snat_id)
-        LOG.debug('Delete dnat: %r', response)
+            LOG.debug('Delete dnat: %r', response)
+        except Exception as e:
+            LOG.info('Delete DNAT rule got an exception %r', e)
+            LOG.debug('Keep going.')
 
     def add_vpn(self, public_ip, port, private_ip):
         LOG.debug('add_vpn() called: public_ip=%r, port=%r, private_ip=%r', public_ip, port, private_ip)
