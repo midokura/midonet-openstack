@@ -90,7 +90,7 @@ class MidonetL3Driver(L3Driver):
         LOG.debug('link_router: %r', link_router)
         provider_router_port_id = link_router['peerPortId']
 
-        # Add a route to the fixed ip in the provider
+        # Add a route for the floating ip in the provider
         response, content = self.mido_conn.routes().create(
                                         FLAGS.midonet_admin_tenant,
                                         FLAGS.midonet_provider_router_id,
@@ -138,7 +138,7 @@ class MidonetL3Driver(L3Driver):
                                         FLAGS.midonet_provider_router_id)
         LOG.debug('Routes: %r', routes)
 
-        # Look for the route to the fixed_ip in the provider router
+        # Look for the route for the floating_ip in the provider router
         route_id = None
         for r in routes:
             if r['dstNetworkAddr'] == floating_ip and r['dstNetworkLength'] == 32:
