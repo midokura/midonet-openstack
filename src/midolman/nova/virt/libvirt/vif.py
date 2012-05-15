@@ -50,19 +50,11 @@ class MidonetVifDriver(LibvirtOpenVswitchDriver):
     def __init__(self):
         self.mido_conn = midonet_connection.get_connection()
 
-    def plug(self, instance, network, mapping):
-        LOG.debug('MidonetVifDriver plug() called. instance:%r, network: %r, mapping: %r', 
-                  instance, network, mapping)
-        # Call the parent method to set up OVS
-        result = super(self.__class__, self).plug(instance, network, mapping)
-        dev = result['name']
-
-        # Not ideal to do this every time, but set the MTU to something big.
-        utils.execute('ip', 'link', 'set', dev, 'mtu', FLAGS.midonet_tap_mtu,
-                      run_as_root=True)
+    def _get_dhcp_data(self, network, mapping):
 
         # Get tenant id from db
-        network_ref = db.network_get_by_uuid(context.get_admin_context(), network['id'])
+        network_ref = db.network_get_by_uuid(context.get_admin_context(),
+                                             network['id'])
         tenant_id = network_ref['project_id']
         if not tenant_id:
             tenant_id = FLAGS.quantum_default_tenant_id
@@ -74,7 +66,25 @@ class MidonetVifDriver(LibvirtOpenVswitchDriver):
         ip = mapping['ips'][0]['ip']
         name = mapping['vif_uuid']
 
-        response, vif = self.mido_conn.dhcp_hosts().create(tenant_id, bridge_id, subnet,
+        return (tenant_id, bridge_id, subnet, mac, ip, name)
+
+    def plug(self, instance, network, mapping):
+        LOG.debug('instance=%r, network=%r, mapping=%r', instance, network,
+                                                         mapping)
+
+        # Call the parent method to set up OVS
+        result = super(self.__class__, self).plug(instance, network, mapping)
+        dev = result['name']
+
+        # Not ideal to do this every time, but set the MTU to something big.
+        utils.execute('ip', 'link', 'set', dev, 'mtu', FLAGS.midonet_tap_mtu,
+                      run_as_root=True)
+
+        (tenant_id, bridge_id, subnet, mac, ip, name) = self._get_dhcp_data(
+                network, mapping)
+
+        response, vif = self.mido_conn.dhcp_hosts().create(tenant_id, 
+                                                           bridge_id, subnet,
                                                            mac, ip, name)
 
         # Get port id corresponding to the vif
@@ -89,4 +99,13 @@ class MidonetVifDriver(LibvirtOpenVswitchDriver):
         return result
 
     def unplug(self, instance, network, mapping):
+        LOG.debug('instance=%r, network=%r, mapping=%r', instance, network,
+                                                         mapping)
         super(self.__class__, self).unplug(instance, network, mapping)
+
+        (tenant_id, bridge_id, subnet, mac, ip, name) = self._get_dhcp_data(
+                network, mapping)
+
+        response, vif = self.mido_conn.dhcp_hosts().delete(tenant_id, 
+                                                           bridge_id, subnet,
+                                                           mac)
