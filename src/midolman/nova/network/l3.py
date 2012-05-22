@@ -92,10 +92,10 @@ class MidonetL3Driver(L3Driver):
 
         # Add a route for the floating ip in the provider
         response, content = self.mido_conn.routes().create(
-                                        FLAGS.midonet_admin_tenant,
+                                        FLAGS.midonet_provider_tenant_id,
                                         FLAGS.midonet_provider_router_id,
                                         'Normal',               # Type
-                                        '0.0.0.0', 0,           # src (any) 
+                                        '0.0.0.0', 0,           # src (any)
                                         floating_ip, 32,        # dest
                                         100,                    # weight
                                         provider_router_port_id,# next hop port
@@ -116,14 +116,14 @@ class MidonetL3Driver(L3Driver):
         # Add DNAT rule to the tenant router
         response, content = self.mido_conn.rules().create_dnat_rule(
                                         tenant_id, tenant_router_id,
-                                        pre_routing_chain_id, 
+                                        pre_routing_chain_id,
                                         floating_ip, fixed_ip)
         LOG.debug('Create DNAT: %r ', response)
 
         # Add SNAT rule to the tenant router
         response, content = self.mido_conn.rules().create_snat_rule(
                                         tenant_id, tenant_router_id,
-                                        post_routing_chain_id, 
+                                        post_routing_chain_id,
                                         floating_ip, fixed_ip)
         LOG.debug('Create NAT: %r', response)
 
@@ -134,7 +134,7 @@ class MidonetL3Driver(L3Driver):
 
         # Get routes in the provider router
         response, routes = self.mido_conn.routes().list(
-                                        FLAGS.midonet_admin_tenant,
+                                        FLAGS.midonet_provider_tenant_id,
                                         FLAGS.midonet_provider_router_id)
         LOG.debug('Routes: %r', routes)
 
@@ -143,13 +143,13 @@ class MidonetL3Driver(L3Driver):
         for r in routes:
             if r['dstNetworkAddr'] == floating_ip and r['dstNetworkLength'] == 32:
                 route_id = r['id']
-            
+
         LOG.debug('Route ID to delete: %r', route_id)
 
         # Delete the route in the provider router
         try:
             response, content = self.mido_conn.routes().delete(
-                                        FLAGS.midonet_admin_tenant,
+                                        FLAGS.midonet_provider_tenant_id,
                                         FLAGS.midonet_provider_router_id,
                                         route_id)
         except Exception as e:
@@ -195,7 +195,7 @@ class MidonetL3Driver(L3Driver):
 
         LOG.debug('pre_routing_chain_id %r', pre_routing_chain_id)
         LOG.debug('post_routing_chain_id %r', post_routing_chain_id)
-       
+
         # DNAT
         response, rules = self.mido_conn.rules().list(
                                         tenant_id, tenant_router_id,
@@ -213,7 +213,7 @@ class MidonetL3Driver(L3Driver):
             response, content = self.mido_conn.rules().delete(
                                         tenant_id, tenant_router_id,
                                         pre_routing_chain_id, dnat_id)
-            LOG.debug('Delete dnat: %r', response) 
+            LOG.debug('Delete dnat: %r', response)
         except Exception as e:
             LOG.info('Delete DNAT rule got an exception %r', e)
             LOG.debug('Keep going.')

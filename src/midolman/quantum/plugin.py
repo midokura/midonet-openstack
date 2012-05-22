@@ -1,5 +1,5 @@
 # vim: tabstop=4 shiftwidth=4 softtabstop=4
-# Copyright 2011 Midokura Japan, KK 
+# Copyright 2011 Midokura Japan, KK
 # All Rights Reserved.
 #
 #    Licensed under the Apache License, Version 2.0 (the "License"); you may
@@ -36,7 +36,7 @@ class MidonetPlugin(QuantumPluginBase):
     def __init__(self):
         config = ConfigParser.ConfigParser()
 
-        config_file = find_config_file({"plugin":"midonet"}, None, 
+        config_file = find_config_file({"plugin":"midonet"}, None,
                                         "midonet_plugin.ini")
         if not config_file:
             raise Exception("Configuration file \"%s\" doesn't exist" %
@@ -46,16 +46,16 @@ class MidonetPlugin(QuantumPluginBase):
         config.read(config_file)
         midonet_uri = config.get('midonet', 'midonet_uri')
         self.provider_router_id = config.get('midonet', 'provider_router_id')
-        self.provider_router_name = config.get('midonet', 
+        self.provider_router_name = config.get('midonet',
                                                'provider_router_name')
-        self.tenant_router_name_format = config.get('midonet', 
+        self.tenant_router_name_format = config.get('midonet',
                                                     'tenant_router_name_format')
 
-        keystone_uri = config.get('keystone', 
+        keystone_uri = config.get('keystone',
                                               'keystone_uri')
         admin_user = config.get('keystone', 'admin_user')
         admin_password = config.get('keystone', 'admin_password')
-        self.admin_tenant = config.get('keystone', 'admin_tenant')
+        self.provider_tenant_id = config.get('keystone', 'provider_tenant_id')
 
         LOG.debug('------midonet plugin config:')
         LOG.debug('midonet_uri: %r', midonet_uri)
@@ -63,28 +63,28 @@ class MidonetPlugin(QuantumPluginBase):
         LOG.debug('keystone_uri: %r', keystone_uri)
         LOG.debug('admin_user: %r', admin_user)
         LOG.debug('admin_password: %r', admin_password)
-        LOG.debug('admin_tenant: %r',  self.admin_tenant)
+        LOG.debug('provider_tenant_id: %r',  self.provider_tenant_id)
 
         self.mido_conn = MidonetClient(
                             midonet_uri=midonet_uri,
                             ks_uri=keystone_uri,
-                            username=admin_user, password=admin_password, 
-                            tenant_name=self.admin_tenant)
+                            username=admin_user, password=admin_password,
+                            tenant_id=self.provider_tenant_id)
 
         # See if the provider tenant and router exist. If not, create them.
         try:
-            self.mido_conn.tenants().get(self.admin_tenant)
+            self.mido_conn.tenants().get(self.provider_tenant_id)
         except exc.HTTPNotFound:
             LOG.debug('Admin tenant(%r) not found. Creating...' %
-                                                            self.admin_tenant)
-            self.mido_conn.tenants().create(self.admin_tenant)
+                                                            self.provider_tenant_id)
+            self.mido_conn.tenants().create(self.provider_tenant_id)
         try:
-            self.mido_conn.routers().get(self.admin_tenant,
+            self.mido_conn.routers().get(self.provider_tenant_id,
                                          self.provider_router_id)
         except LookupError as e:
             LOG.debug('Provider router(%r) not found. Creating...' %
                                                         self.provider_router_id)
-            self.mido_conn.routers().create(self.admin_tenant, 
+            self.mido_conn.routers().create(self.provider_tenant_id,
                              self.provider_router_name, self.provider_router_id)
 
     def get_all_networks(self, tenant_id, filter_opts=None):
@@ -106,7 +106,7 @@ class MidonetPlugin(QuantumPluginBase):
         res = []
         for b in bridges:
             res.append({'net-id': b['id'], 'net-name': b['name'],
-                        'net-op-status': OperationalStatus}) 
+                        'net-op-status': OperationalStatus})
         return res
 
     def create_network(self, tenant_id, net_name, **kwargs):
@@ -114,7 +114,7 @@ class MidonetPlugin(QuantumPluginBase):
         Creates a new Virtual Network, and assigns it
         a symbolic name.
         """
-        LOG.debug("create_network() called, tenant_id: %r, net_name: %r", 
+        LOG.debug("create_network() called, tenant_id: %r, net_name: %r",
                     tenant_id, net_name)
         LOG.debug("                            kwargs: %r", kwargs)
 
@@ -147,14 +147,14 @@ class MidonetPlugin(QuantumPluginBase):
                                                  tenant_id, tenant_router_name)
             response, content = self.mido_conn.get(response['location'])
             tenant_router_id = content['id']
-            
+
             # Create a link from the provider router
             # TODO: might as well remove hardcoded addresses and length
             response, content = self.mido_conn.routers().link_router_create(
-                                        self.admin_tenant,
+                                        self.provider_tenant_id,
                                         self.provider_router_id,
                                         '10.0.0.0', 30,
-                                        '10.0.0.1', '10.0.0.2', 
+                                        '10.0.0.1', '10.0.0.2',
                                         tenant_router_id)
 
             tenant_uplink_port = content['peerPortId']
@@ -186,7 +186,7 @@ class MidonetPlugin(QuantumPluginBase):
         Deletes the network with the specified network identifier
         belonging to the specified tenant.
         """
-        LOG.debug("delete_network() called. tenant_id=%r, net_id=%r", 
+        LOG.debug("delete_network() called. tenant_id=%r, net_id=%r",
                                                             tenant_id, net_id)
 
         tenant_router_name = self.tenant_router_name_format % tenant_id
@@ -200,7 +200,7 @@ class MidonetPlugin(QuantumPluginBase):
                 LOG.debug("Tenant Router found")
                 tenant_router_id = r['id']
 
-        # Delete link between the tenant router and the bridge 
+        # Delete link between the tenant router and the bridge
         try:
             response, content = self.mido_conn.routers().link_bridge_delete(
                                            tenant_id, tenant_router_id, net_id)
@@ -229,7 +229,7 @@ class MidonetPlugin(QuantumPluginBase):
             response, bridge = self.mido_conn.bridges().get(tenant_id, net_id)
             LOG.debug("Bridge: %r", bridge)
             res = {'net-id': bridge['id'], 'net-name': bridge['name'],
-                   'net-op-status': 'UP'} 
+                   'net-op-status': 'UP'}
         except LookupError as e:
             LOG.debug("Bridge %r not found", net_id)
             raise exception.NetworkNotFound(net_id=net_id)
@@ -263,7 +263,7 @@ class MidonetPlugin(QuantumPluginBase):
         response, content = self.mido_conn.bridge_ports().create(
                                                          tenant_id, bridge_uuid)
         response, bridge_port = self.mido_conn.get(response['location'])
-        LOG.debug('Bridge port=%r is created on bridge=%r', 
+        LOG.debug('Bridge port=%r is created on bridge=%r',
                                                 bridge_port['id'], bridge_uuid)
 
         port = {'port-id': bridge_port['id'],
@@ -279,7 +279,7 @@ class MidonetPlugin(QuantumPluginBase):
         the remote interface is first un-plugged and then the port
         is deleted.
         """
-        LOG.debug("delete_port() called. tenant_id=%r, net_id=%r, port_id=%r", 
+        LOG.debug("delete_port() called. tenant_id=%r, net_id=%r, port_id=%r",
                                                     tenant_id, net_id, port_id)
         response, content = self.mido_conn.bridge_ports().delete(
                                                     tenant_id, net_id, port_id)

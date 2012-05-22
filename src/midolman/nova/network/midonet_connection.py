@@ -48,9 +48,9 @@ midonet_opts = [
     cfg.StrOpt('midonet_admin_password',
                default = 'passw0rd',
                help='Midonet admin user name in keystone'),
-    cfg.StrOpt('midonet_admin_tenant',
-               default = 'admin',
-               help='Midonet admin tenant name')
+    cfg.StrOpt('midonet_provider_tenant_id',
+               default = 'mido_provider',
+               help='Midonet provider tenant id')
 ]
 
 FLAGS = flags.FLAGS
@@ -65,5 +65,5 @@ def get_connection():
         mido_conn = MidonetClient(midonet_uri=FLAGS.midonet_uri,
                  ks_uri=FLAGS.midonet_keystone_uri,
                  username=FLAGS.midonet_admin_user, password=FLAGS.midonet_admin_password,
-                 tenant_name=FLAGS.midonet_admin_tenant)
+                 tenant_id=FLAGS.midonet_provider_tenant_id)
     return mido_conn
