@@ -147,23 +147,21 @@ class MidonetL3Driver(L3Driver):
         LOG.debug('Routes: %r', routes)
 
         # Look for the route for the floating_ip in the provider router
+        # and delete
         route_id = None
         for r in routes:
             if r['dstNetworkAddr'] == floating_ip and \
                    r['dstNetworkLength'] == 32:
                 route_id = r['id']
-
-        LOG.debug('Route ID to delete: %r', route_id)
-
-        # Delete the route in the provider router
-        try:
-            response, content = self.mido_conn.routes().delete(
+                # Delete the route in the provider router
+                try:
+                    response, content = self.mido_conn.routes().delete(
                                         FLAGS.midonet_provider_tenant_id,
                                         FLAGS.midonet_provider_router_id,
                                         route_id)
-        except Exception as e:
-            LOG.info('Delete route got an exception %r', e)
-            LOG.debug('Keep going.')
+                except Exception as e:
+                    LOG.info('Delete route got an exception %r', e)
+                    LOG.debug('Keep going.')
         #
         # Now take care of NAT rules
         #
@@ -201,41 +199,36 @@ class MidonetL3Driver(L3Driver):
         # DNAT
         response, rules = self.mido_conn.rules().list(tenant_id, in_chain_id)
         LOG.debug('Rules in in_chain %r', rules)
-        found = False
         for r in rules:
             if r['nwDstAddress'] == floating_ip and r['nwDstLength'] == 32:
-                found = True
                 LOG.debug('DNAT rule to delete found: %r', r)
                 dnat_id = r['id']
-        LOG.debug('DNAT rules found? %r', found)
 
-        try:
-            response, content = self.mido_conn.rules().delete(tenant_id,
+                try:
+                    response, content = self.mido_conn.rules().delete(tenant_id,
                                         in_chain_id, dnat_id)
-            LOG.debug('Delete dnat: %r', response)
-        except Exception as e:
-            LOG.info('Delete DNAT rule got an exception %r', e)
-            LOG.debug('Keep going.')
+                    LOG.debug('Delete dnat: %r', response)
+                except Exception as e:
+                    LOG.info('Delete DNAT rule got an exception %r', e)
+                    LOG.debug('Keep going.')
 
         # SNAT
         response, rules = self.mido_conn.rules().list(tenant_id, out_chain_id)
         LOG.debug('Rules in out_chain: %r', rules)
 
-        found = False
         for r in rules:
             if r['nwSrcAddress'] == fixed_ip and r['nwSrcLength'] == 32:
-                found = True
                 LOG.debug('SNAT rule to delete found: %r', r)
                 snat_id = r['id']
-        assert found
 
-        try:
-            response, content = self.mido_conn.rules().delete(tenant_id,
+                try:
+                    response, content = self.mido_conn.rules().delete(tenant_id,
                                         out_chain_id, snat_id)
-            LOG.debug('Delete dnat: %r', response)
-        except Exception as e:
-            LOG.info('Delete DNAT rule got an exception %r', e)
-            LOG.debug('Keep going.')
+                    LOG.debug('Delete dnat: %r', response)
+                except Exception as e:
+                    LOG.info('Delete DNAT rule got an exception %r', e)
+                    LOG.debug('Keep going.')
+
 
     def add_vpn(self, public_ip, port, private_ip):
         LOG.debug('public_ip=%r, port=%r, private_ip=%r',
