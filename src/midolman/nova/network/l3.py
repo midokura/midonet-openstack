@@ -33,7 +33,24 @@ class MidonetL3Driver(L3Driver):
     def __init__(self):
         LOG.debug('__init__() called.')
         self.mido_conn = midonet_connection.get_connection()
-        pass
+
+        #TOOD: DRY these constant definition between nova and quantum sides
+        self.in_chain_name = 'os_project_router_in'
+        self.out_chain_name = 'os_project_router_out'
+
+    def _get_in_out_chain_ids(self, tenant_id):
+        response, chains = self.mido_conn.chains().list(tenant_id)
+        LOG.debug('chains: %r', chains)
+
+        for c in chains:
+            if c['name'] == self.in_chain_name:
+                in_chain_id = c['id']
+            if c['name'] == self.out_chain_name:
+                out_chain_id = c['id']
+
+        LOG.debug('in_chain_id %r', in_chain_id)
+        LOG.debug('out_chain_id %r', out_chain_id)
+        return (in_chain_id, out_chain_id)
 
     def initialize(self, **kwargs):
         LOG.debug('kwargs=%r', kwargs)
@@ -73,7 +90,7 @@ class MidonetL3Driver(L3Driver):
 
         LOG.debug('tenant_id: %r', tenant_id)
         # Search tenant router
-        tenant_router_name = FLAGS.midonet_tenant_router_name_format % tenant_id
+        tenant_router_name = FLAGS.midonet_tenant_router_name
 
         response, routers = self.mido_conn.routers().list(tenant_id)
         LOG.debug('routers: %r', routers)
@@ -104,29 +121,17 @@ class MidonetL3Driver(L3Driver):
                                 None)                   # next hop gw
         LOG.debug('Route created: %r', response)
 
-        response, chains = self.mido_conn.chains().list(tenant_id,
-                               tenant_router_id)
-        LOG.debug('chains: %r', chains)
-        for c in chains:
-            if c['name'] == 'pre_routing':
-                pre_routing_chain_id = c['id']
-            if c['name'] == 'post_routing':
-                post_routing_chain_id = c['id']
-
-        LOG.debug('pre_routing_chain_id %r', pre_routing_chain_id)
-        LOG.debug('post_routing_chain_id %r', post_routing_chain_id)
+        in_chain_id, out_chain_id = self._get_in_out_chain_ids(tenant_id)
 
         # Add DNAT rule to the tenant router
         response, content = self.mido_conn.rules().create_dnat_rule(
-                                        tenant_id, tenant_router_id,
-                                        pre_routing_chain_id,
+                                        tenant_id, in_chain_id,
                                         floating_ip, fixed_ip)
         LOG.debug('Create DNAT: %r ', response)
 
         # Add SNAT rule to the tenant router
         response, content = self.mido_conn.rules().create_snat_rule(
-                                        tenant_id, tenant_router_id,
-                                        post_routing_chain_id,
+                                        tenant_id, out_chain_id,
                                         floating_ip, fixed_ip)
         LOG.debug('Create NAT: %r', response)
 
@@ -179,7 +184,7 @@ class MidonetL3Driver(L3Driver):
         LOG.debug('tenant_id: %r', tenant_id)
         # Search tenant router
         tenant_router_name = \
-            FLAGS.midonet_tenant_router_name_format % tenant_id
+            FLAGS.midonet_tenant_router_name
 
         response, routers = self.mido_conn.routers().list(tenant_id)
         LOG.debug('routers: %r', routers)
@@ -191,23 +196,11 @@ class MidonetL3Driver(L3Driver):
                 tenant_router_id = r['id']
         assert found
 
-        response, chains = self.mido_conn.chains().list(tenant_id,
-                               tenant_router_id)
-        LOG.debug('Chains: %r', chains)
-        for c in chains:
-            if c['name'] == 'pre_routing':
-                pre_routing_chain_id = c['id']
-            if c['name'] == 'post_routing':
-                post_routing_chain_id = c['id']
-
-        LOG.debug('pre_routing_chain_id %r', pre_routing_chain_id)
-        LOG.debug('post_routing_chain_id %r', post_routing_chain_id)
+        in_chain_id, out_chain_id = self._get_in_out_chain_ids(tenant_id)
 
         # DNAT
-        response, rules = self.mido_conn.rules().list(
-                                        tenant_id, tenant_router_id,
-                                        pre_routing_chain_id)
-        LOG.debug('Rules in pre_routing %r', rules)
+        response, rules = self.mido_conn.rules().list(tenant_id, in_chain_id)
+        LOG.debug('Rules in in_chain %r', rules)
         found = False
         for r in rules:
             if r['nwDstAddress'] == floating_ip and r['nwDstLength'] == 32:
@@ -217,19 +210,16 @@ class MidonetL3Driver(L3Driver):
         LOG.debug('DNAT rules found? %r', found)
 
         try:
-            response, content = self.mido_conn.rules().delete(
-                                        tenant_id, tenant_router_id,
-                                        pre_routing_chain_id, dnat_id)
+            response, content = self.mido_conn.rules().delete(tenant_id,
+                                        in_chain_id, dnat_id)
             LOG.debug('Delete dnat: %r', response)
         except Exception as e:
             LOG.info('Delete DNAT rule got an exception %r', e)
             LOG.debug('Keep going.')
 
         # SNAT
-        response, rules = self.mido_conn.rules().list(
-                                        tenant_id, tenant_router_id,
-                                        post_routing_chain_id)
-        LOG.debug('Rules in post_routing: %r', rules)
+        response, rules = self.mido_conn.rules().list(tenant_id, out_chain_id)
+        LOG.debug('Rules in out_chain: %r', rules)
 
         found = False
         for r in rules:
@@ -240,9 +230,8 @@ class MidonetL3Driver(L3Driver):
         assert found
 
         try:
-            response, content = self.mido_conn.rules().delete(
-                                        tenant_id, tenant_router_id,
-                                        post_routing_chain_id, snat_id)
+            response, content = self.mido_conn.rules().delete(tenant_id,
+                                        out_chain_id, snat_id)
             LOG.debug('Delete dnat: %r', response)
         except Exception as e:
             LOG.info('Delete DNAT rule got an exception %r', e)
