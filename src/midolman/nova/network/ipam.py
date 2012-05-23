@@ -70,7 +70,7 @@ class MidonetNovaIPAMLib(QuantumNovaIPAMLib):
                                                      net_addr, length, gateway)
 
         # Search tenant router
-        tenant_router_name = FLAGS.midonet_tenant_router_name_format % tenant_id
+        tenant_router_name = FLAGS.midonet_tenant_router_name
 
         response, content = mido_conn.routers().list(tenant_id)
         tenant_router_id = None

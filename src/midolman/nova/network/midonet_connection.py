@@ -31,11 +31,11 @@ midonet_opts = [
                default='00112233-0011-0011-0011-001122334455',
                help='UUID of Midonet provider router'),
     cfg.StrOpt('midonet_provider_router_name',
-               default='MidonetProviderRouter',
-               help='MidonetProviderRouter'),
-    cfg.StrOpt('midonet_tenant_router_name_format',
-               default = 'MidonetTenantRouter-%s',
-               help='Format string for Midonet tenant router. %s is expanded with tenant id'),
+               default='provider_router',
+               help='Midonet provider router'),
+    cfg.StrOpt('midonet_tenant_router_name',
+               default = 'os_project_router',
+               help='Name of tenant router'),
 
     # Keystone related settings
 

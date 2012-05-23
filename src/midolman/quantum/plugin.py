@@ -32,6 +32,8 @@ LOG = logging.getLogger('MidonetPlugin')
 
 
 class MidonetPlugin(QuantumPluginBase):
+    PROVIDER_ROUTER_NAME = 'provider_router'
+    TENANT_ROUTER_NAME = 'os_project_router'
 
     def __init__(self):
         config = ConfigParser.ConfigParser()
@@ -46,10 +48,18 @@ class MidonetPlugin(QuantumPluginBase):
         config.read(config_file)
         midonet_uri = config.get('midonet', 'midonet_uri')
         self.provider_router_id = config.get('midonet', 'provider_router_id')
-        self.provider_router_name = config.get('midonet',
-                                               'provider_router_name')
-        self.tenant_router_name_format = config.get('midonet',
-                                                    'tenant_router_name_format')
+
+        if config.has_option('midonet', 'provider_router_name'):
+            self.provider_router_name = config.get('midonet',
+                                                    'provider_router_name')
+        else:
+            self.provider_router_name = self.PROVIDER_ROUTER_NAME
+
+        if config.has_option('midonet', 'tenant_router_name'):
+            self.tenant_router_name = config.get('midonet',
+                                                    'tenant_router_name')
+        else:
+            self.tenant_router_name = self.TENANT_ROUTER_NAME
 
         keystone_uri = config.get('keystone',
                                               'keystone_uri')
@@ -128,7 +138,7 @@ class MidonetPlugin(QuantumPluginBase):
             LOG.debug("Create tenant in midonet got exception: %r", e)
             raise e
 
-        tenant_router_name = self.tenant_router_name_format % tenant_id
+        tenant_router_name = self.tenant_router_name
         LOG.debug("Midonet Tenant Router Name: %r", tenant_router_name)
         # do get routers to see if the tenant already has its tenant router.
         response, content = self.mido_conn.routers().list(tenant_id)
@@ -189,7 +199,7 @@ class MidonetPlugin(QuantumPluginBase):
         LOG.debug("delete_network() called. tenant_id=%r, net_id=%r",
                                                             tenant_id, net_id)
 
-        tenant_router_name = self.tenant_router_name_format % tenant_id
+        tenant_router_name = self.tenant_router_name
         LOG.debug("Midonet Tenant Router Name: %r", tenant_router_name)
         # do get routers to see if the tenant already has its tenant router.
         response, content = self.mido_conn.routers().list(tenant_id)
