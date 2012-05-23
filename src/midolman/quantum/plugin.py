@@ -34,6 +34,8 @@ LOG = logging.getLogger('MidonetPlugin')
 class MidonetPlugin(QuantumPluginBase):
     PROVIDER_ROUTER_NAME = 'provider_router'
     TENANT_ROUTER_NAME = 'os_project_router'
+    TENANT_ROUTER_CHAIN_IN = 'os_project_router_in'
+    TENANT_ROUTER_CHAIN_OUT = 'os_project_router_out'
 
     def __init__(self):
         config = ConfigParser.ConfigParser()
@@ -124,9 +126,8 @@ class MidonetPlugin(QuantumPluginBase):
         Creates a new Virtual Network, and assigns it
         a symbolic name.
         """
-        LOG.debug("create_network() called, tenant_id: %r, net_name: %r",
-                    tenant_id, net_name)
-        LOG.debug("                            kwargs: %r", kwargs)
+        LOG.debug("tenant_id=%r, net_name=%r, kwargs: %r",
+                  tenant_id, net_name, kwargs)
 
         try:
             self.mido_conn.tenants().get(tenant_id)
@@ -155,8 +156,8 @@ class MidonetPlugin(QuantumPluginBase):
         if not found:
             response, content = self.mido_conn.routers().create(
                                                  tenant_id, tenant_router_name)
-            response, content = self.mido_conn.get(response['location'])
-            tenant_router_id = content['id']
+            response, tenant_router = self.mido_conn.get(response['location'])
+            tenant_router_id = tenant_router['id']
 
             # Create a link from the provider router
             # TODO: might as well remove hardcoded addresses and length
@@ -167,8 +168,8 @@ class MidonetPlugin(QuantumPluginBase):
                                         '10.0.0.1', '10.0.0.2',
                                         tenant_router_id)
 
+            # Set default route to uplink
             tenant_uplink_port = content['peerPortId']
-
             response, content = self.mido_conn.routes().create(
                                         tenant_id,
                                         tenant_router_id,
@@ -178,6 +179,21 @@ class MidonetPlugin(QuantumPluginBase):
                                         100,               # weight
                                         tenant_uplink_port,# next hop port
                                         None)              # next hop gateway
+
+            # create in-n-out chains for the tenant router
+            response, content = self.mido_conn.chains().create(tenant_id,
+                    self.TENANT_ROUTER_CHAIN_IN)
+            response, in_chain = self.mido_conn.get(response['location'])
+
+            response, content = self.mido_conn.chains().create(tenant_id,
+                    self.TENANT_ROUTER_CHAIN_OUT)
+            response, out_chain = self.mido_conn.get(response['location'])
+
+            # set in-n-out filter for the tenant router
+            response, content = self.mido_conn.routers().update(
+                    tenant_id, tenant_router['id'],
+                    tenant_router['name'],
+                    in_chain['id'], out_chain['id'])
 
         # create a bridge for this network
         response, content = self.mido_conn.bridges().create(tenant_id, net_name)
