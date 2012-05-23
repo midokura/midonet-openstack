@@ -36,27 +36,27 @@ class MidonetL3Driver(L3Driver):
         pass
 
     def initialize(self, **kwargs):
-        LOG.debug('initialize() called: kwargs=%r', kwargs)
+        LOG.debug('kwargs=%r', kwargs)
         pass
 
     def is_initialized(self):
         return True
 
     def initialize_network(self, cidr):
-        LOG.debug('initialize_network() called: cidr=%r', cidr)
+        LOG.debug('cidr=%r', cidr)
         pass
 
     def initialize_gateway(self, network_ref):
-        LOG.debug('initialize_gateway() called: network_ref=%r', network_ref)
+        LOG.debug('network_ref=%r', network_ref)
         pass
 
     def remove_gateway(self, network_ref):
-        LOG.debug('remove_gateway() called: network_ref=%r', network_ref)
+        LOG.debug('network_ref=%r', network_ref)
         pass
 
     def add_floating_ip(self, floating_ip, fixed_ip, l3_interface_id):
-        LOG.debug('add_floating_ip() called: floating_ip=%r, fixed_ip=%r, l3_interface_id=%r',
-                     floating_ip, fixed_ip, l3_interface_id)
+        LOG.debug('floating_ip=%r, fixed_ip=%r, l3_interface_id=%r',
+                  floating_ip, fixed_ip, l3_interface_id)
 
         admin_context = context.get_admin_context()
         fixed_ip_ref = db.fixed_ip_get_by_address(admin_context, fixed_ip)
@@ -68,7 +68,8 @@ class MidonetL3Driver(L3Driver):
         network_ref = db.network_get(admin_context, network_id)
         LOG.debug('network_ref: %r',  network_ref)
 
-        tenant_id = network_ref['project_id'] or FLAGS.quantum_default_tenant_id
+        tenant_id = network_ref['project_id'] or \
+                        FLAGS.quantum_default_tenant_id
 
         LOG.debug('tenant_id: %r', tenant_id)
         # Search tenant router
@@ -85,24 +86,26 @@ class MidonetL3Driver(L3Driver):
         assert found
 
         response, link_router = self.mido_conn.routers().link_router_get(
-                                                            tenant_id, tenant_router_id,
-                                                            FLAGS.midonet_provider_router_id)
+                                    tenant_id, tenant_router_id,
+                                    FLAGS.midonet_provider_router_id)
         LOG.debug('link_router: %r', link_router)
         provider_router_port_id = link_router['peerPortId']
 
         # Add a route for the floating ip in the provider
         response, content = self.mido_conn.routes().create(
-                                        FLAGS.midonet_provider_tenant_id,
-                                        FLAGS.midonet_provider_router_id,
-                                        'Normal',               # Type
-                                        '0.0.0.0', 0,           # src (any)
-                                        floating_ip, 32,        # dest
-                                        100,                    # weight
-                                        provider_router_port_id,# next hop port
-                                        None)                   # next hop gateway  #TODO to put peer IP addr
+                                FLAGS.midonet_provider_tenant_id,
+                                FLAGS.midonet_provider_router_id,
+                                'Normal',               # Type
+                                '0.0.0.0', 0,           # src (any)
+                                floating_ip, 32,        # dest
+                                100,                    # weight
+                                provider_router_port_id,# next hop port
+                                                        #TODO put peer's IP addr
+                                None)                   # next hop gw
         LOG.debug('Route created: %r', response)
 
-        response, chains = self.mido_conn.chains().list(tenant_id, tenant_router_id)
+        response, chains = self.mido_conn.chains().list(tenant_id,
+                               tenant_router_id)
         LOG.debug('chains: %r', chains)
         for c in chains:
             if c['name'] == 'pre_routing':
@@ -128,8 +131,8 @@ class MidonetL3Driver(L3Driver):
         LOG.debug('Create NAT: %r', response)
 
     def remove_floating_ip(self, floating_ip, fixed_ip, l3_interface_id):
-        LOG.debug('remove_floating_ip() called: floating_ip=%r, fixed_ip=%r, l3_interface_id=%r',
-                     floating_ip, fixed_ip, l3_interface_id)
+        LOG.debug('floating_ip=%r, fixed_ip=%r, l3_interface_id=%r',
+                  floating_ip, fixed_ip, l3_interface_id)
 
 
         # Get routes in the provider router
@@ -141,7 +144,8 @@ class MidonetL3Driver(L3Driver):
         # Look for the route for the floating_ip in the provider router
         route_id = None
         for r in routes:
-            if r['dstNetworkAddr'] == floating_ip and r['dstNetworkLength'] == 32:
+            if r['dstNetworkAddr'] == floating_ip and \
+                   r['dstNetworkLength'] == 32:
                 route_id = r['id']
 
         LOG.debug('Route ID to delete: %r', route_id)
@@ -169,11 +173,13 @@ class MidonetL3Driver(L3Driver):
         network_ref = db.network_get(admin_context, network_id)
         LOG.debug('network_ref: %r', network_ref)
 
-        tenant_id = network_ref['project_id'] or FLAGS.quantum_default_tenant_id
+        tenant_id = network_ref['project_id'] or \
+                        FLAGS.quantum_default_tenant_id
 
         LOG.debug('tenant_id: %r', tenant_id)
         # Search tenant router
-        tenant_router_name = FLAGS.midonet_tenant_router_name_format % tenant_id
+        tenant_router_name = \
+            FLAGS.midonet_tenant_router_name_format % tenant_id
 
         response, routers = self.mido_conn.routers().list(tenant_id)
         LOG.debug('routers: %r', routers)
@@ -185,7 +191,8 @@ class MidonetL3Driver(L3Driver):
                 tenant_router_id = r['id']
         assert found
 
-        response, chains = self.mido_conn.chains().list(tenant_id, tenant_router_id)
+        response, chains = self.mido_conn.chains().list(tenant_id,
+                               tenant_router_id)
         LOG.debug('Chains: %r', chains)
         for c in chains:
             if c['name'] == 'pre_routing':
@@ -242,11 +249,13 @@ class MidonetL3Driver(L3Driver):
             LOG.debug('Keep going.')
 
     def add_vpn(self, public_ip, port, private_ip):
-        LOG.debug('add_vpn() called: public_ip=%r, port=%r, private_ip=%r', public_ip, port, private_ip)
+        LOG.debug('public_ip=%r, port=%r, private_ip=%r',
+                  public_ip, port, private_ip)
         pass
 
     def remove_vpn(self, public_ip, port, private_ip):
-        LOG.debug('remove_vpn() called: public_ip=%r, port=%r, private_ip=%r', public_ip, port, private_ip)
+        LOG.debug('public_ip=%r, port=%r, private_ip=%r',
+                  public_ip, port, private_ip)
         pass
 
     def teardown(self):
