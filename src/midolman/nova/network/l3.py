@@ -34,18 +34,14 @@ class MidonetL3Driver(L3Driver):
         LOG.debug('__init__() called.')
         self.mido_conn = midonet_connection.get_connection()
 
-        #TOOD: DRY these constant definition between nova and quantum sides
-        self.in_chain_name = 'os_project_router_in'
-        self.out_chain_name = 'os_project_router_out'
-
     def _get_in_out_chain_ids(self, tenant_id):
         response, chains = self.mido_conn.chains().list(tenant_id)
         LOG.debug('chains: %r', chains)
 
         for c in chains:
-            if c['name'] == self.in_chain_name:
+            if c['name'] == FLAGS.midonet_tenant_router_in_chain_name:
                 in_chain_id = c['id']
-            if c['name'] == self.out_chain_name:
+            if c['name'] == FLAGS.midonet_tenant_router_out_chain_name:
                 out_chain_id = c['id']
 
         LOG.debug('in_chain_id %r', in_chain_id)
@@ -181,8 +177,7 @@ class MidonetL3Driver(L3Driver):
 
         LOG.debug('tenant_id: %r', tenant_id)
         # Search tenant router
-        tenant_router_name = \
-            FLAGS.midonet_tenant_router_name
+        tenant_router_name = FLAGS.midonet_tenant_router_name
 
         response, routers = self.mido_conn.routers().list(tenant_id)
         LOG.debug('routers: %r', routers)
