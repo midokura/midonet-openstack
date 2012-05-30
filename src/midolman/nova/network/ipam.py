@@ -26,6 +26,7 @@ from nova.network import manager
 
 from nova.network.quantum.nova_ipam_lib import QuantumNovaIPAMLib
 from midonet.client import MidonetClient
+from midonet.api import PortType
 from midolman.nova.network import midonet_connection
 
 # Add 'nova' prefix for nova's logging setting
@@ -81,21 +82,41 @@ class MidonetNovaIPAMLib(QuantumNovaIPAMLib):
                 tenant_router_id = r['id']
         assert found
 
-        # Create a link from the tenant router to the bridge
-        response, content = mido_conn.routers().link_bridge_create(
-                                        tenant_id,
-                                        tenant_router_id,
-                                        net_addr, length, gateway,
-                                        bridge_id)
-        router_port_id = content['routerPortId']
+        # Create a port in the tenant router
+        response, content = mido_conn.router_ports().create(
+                tenant_id,
+                tenant_router_id,
+                PortType.LOGICAL_ROUTER,
+                net_addr, length,
+                gateway)
+        response, tenant_router_port = mido_conn.get(response['location'])
+        LOG.debug('tenant_router_port=%r', tenant_router_port)
+
+        # Create a port in the bridge
+        response, content = mido_conn.bridge_ports().create(
+                tenant_id,
+                bridge_id,
+                PortType.LOGICAL_BRIDGE)
+
+        response, bridge_port = mido_conn.get(response['location'])
+        LOG.debug('bridge_port=%r', bridge_port)
+
+        # Link them
+        response, content = mido_conn.router_ports().link(
+                tenant_id,
+                tenant_router_id,
+                tenant_router_port['id'],
+                bridge_port['id'])
+
+        tenant_router_port_id = tenant_router_port['id']
 
         # Create a route to the subnet in the tenant router
         response, content = mido_conn.routes().create(
-                                        tenant_id,
-                                        tenant_router_id,
-                                        'Normal',         # type
-                                        '0.0.0.0', 0,     # source
-                                        net_addr, length, # destination
-                                         100,             # weight
-                                        router_port_id,   # next hop port
-                                        None)             # next hop gateway
+                tenant_id,
+                tenant_router_id,
+                'Normal',                # type
+                '0.0.0.0', 0,            # source
+                net_addr, length,        # destination
+                100,                     # weight
+                tenant_router_port_id,   # next hop port
+                None)                    # next hop gateway

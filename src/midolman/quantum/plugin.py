@@ -26,6 +26,7 @@ from quantum.common.config import find_config_file
 from quantum.common import exceptions as exception
 
 from midonet.client import MidonetClient
+from midonet.api import PortType
 
 
 LOG = logging.getLogger('MidonetPlugin')
@@ -159,26 +160,44 @@ class MidonetPlugin(QuantumPluginBase):
             response, tenant_router = self.mido_conn.get(response['location'])
             tenant_router_id = tenant_router['id']
 
-            # Create a link from the provider router
-            # TODO: might as well remove hardcoded addresses and length
-            response, content = self.mido_conn.routers().link_router_create(
-                                        self.provider_tenant_id,
-                                        self.provider_router_id,
-                                        '10.0.0.0', 30,
-                                        '10.0.0.1', '10.0.0.2',
-                                        tenant_router_id)
+            # Create a port in the provider router
+            response, content = self.mido_conn.router_ports().create(
+                    self.provider_tenant_id,
+                    self.provider_router_id,
+                    PortType.LOGICAL_ROUTER,
+                    '10.0.0.0', 30,
+                    '10.0.0.1')
+            response, provider_port = self.mido_conn.get(response['location'])
+            LOG.debug('provider_port=%r', provider_port)
+
+            # Create a port in the tenant router
+            response, content = self.mido_conn.router_ports().create(
+                    tenant_id,
+                    tenant_router_id,
+                    PortType.LOGICAL_ROUTER,
+                    '10.0.0.0', 30,
+                    '10.0.0.2')
+            response, tenant_port = self.mido_conn.get(response['location'])
+            LOG.debug('tenant_port=%r', tenant_port)
+
+            # Link them
+            response, content = self.mido_conn.router_ports().link(
+                    self.provider_tenant_id,
+                    self.provider_router_id,
+                    provider_port['id'],
+                    tenant_port['id'])
 
             # Set default route to uplink
-            tenant_uplink_port = content['peerPortId']
+            tenant_uplink_port_id = tenant_port['id']
             response, content = self.mido_conn.routes().create(
-                                        tenant_id,
-                                        tenant_router_id,
-                                        'Normal',          # type
-                                        '0.0.0.0', 0,      # source
-                                        '0.0.0.0', 0,      # destination
-                                        100,               # weight
-                                        tenant_uplink_port,# next hop port
-                                        None)              # next hop gateway
+                    tenant_id,
+                    tenant_router_id,
+                    'Normal',             # type
+                    '0.0.0.0', 0,         # source
+                    '0.0.0.0', 0,         # destination
+                    100,                  # weight
+                    tenant_uplink_port_id,# next hop port
+                    None)                 # next hop gateway
 
             # create in-n-out chains for the tenant router
             response, content = self.mido_conn.chains().create(tenant_id,
@@ -227,21 +246,29 @@ class MidonetPlugin(QuantumPluginBase):
                 tenant_router_id = r['id']
 
         # Delete link between the tenant router and the bridge
-        try:
-            response, content = self.mido_conn.routers().link_bridge_delete(
-                                           tenant_id, tenant_router_id, net_id)
-        except Exception as e:
-            LOG.debug("Delete link got an exception: %r. Keep going.", e)
-            pass
+        # look for the port that is connected to the bridge
+        response, tr_ports = self.mido_conn.router_ports().list(
+                tenant_id, tenant_router_id)
+
+        LOG.debug('tr_ports=%r', tr_ports)
+        found = False
+        for p in tr_ports:
+            if p['type'] == PortType.MATERIALIZED_ROUTER:
+                continue
+            response, peer_port = self.mido_conn.get(p['peer'])
+            if peer_port['deviceId'] == net_id:
+                response, content = self.mido_conn.router_ports().unlink(
+                        tenant_id, tenant_router_id, p['id'])
+                found = True
+        assert found
 
         # Delete the bridge
         try:
             response, content = self.mido_conn.bridges().delete(
-                                                             tenant_id, net_id)
+                    tenant_id, net_id)
         except Exception as e:
-            LOG.debug("Delete bridge got an exception: %r. Keep going.", e)
-            pass
-
+            LOG.debug("Delete bridge got an exception: %r.", e)
+            LOG.debug("Since unlink succeeded, the exception was swallowed")
 
     def get_network_details(self, tenant_id, net_id):
         """
@@ -287,7 +314,7 @@ class MidonetPlugin(QuantumPluginBase):
         response, bridge = self.mido_conn.bridges().get(tenant_id, net_id)
         bridge_uuid = bridge['id']
         response, content = self.mido_conn.bridge_ports().create(
-                                                         tenant_id, bridge_uuid)
+                tenant_id, bridge_uuid, PortType.MATERIALIZED_BRIDGE)
         response, bridge_port = self.mido_conn.get(response['location'])
         LOG.debug('Bridge port=%r is created on bridge=%r',
                                                 bridge_port['id'], bridge_uuid)
@@ -330,11 +357,16 @@ class MidonetPlugin(QuantumPluginBase):
                                                     tenant_id, net_id, port_id)
         LOG.debug("Got Bridge port=%r", bridge_port)
 
+        if bridge_port['type'] == PortType.MATERIALIZED_BRIDGE:
+            attachment = bridge_port['vifId']
+        else:
+            attachment = None
+
         port = {'port-id': bridge_port['id'],
                 'port-state': 'ACTIVE',
                 'port-op-status': 'UP',
                 'net-id': net_id,
-                'attachment': bridge_port['vifId']}
+                'attachment': attachment}
         return port
 
     def plug_interface(self, tenant_id, net_id, port_id, vif_id):

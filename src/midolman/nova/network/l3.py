@@ -97,13 +97,22 @@ class MidonetL3Driver(L3Driver):
                 LOG.debug("Tenant Router found: %r", r)
                 found = True
                 tenant_router_id = r['id']
+                break
         assert found
 
-        response, link_router = self.mido_conn.routers().link_router_get(
-                                    tenant_id, tenant_router_id,
-                                    FLAGS.midonet_provider_router_id)
-        LOG.debug('link_router: %r', link_router)
-        provider_router_port_id = link_router['peerPortId']
+        # look for the port that is connected to the tenant router
+        response, pr_pps = self.mido_conn.routers().peer_ports(
+                                FLAGS.midonet_provider_tenant_id,
+                                FLAGS.midonet_provider_router_id)
+        LOG.debug('Provider Router: peer_ports=%r', pr_pps)
+        found = False
+        for p in pr_pps:
+            if p['deviceId'] == tenant_router_id:
+                provider_router_port_id = p['peerId']
+                LOG.debug('provider_router_port_id=%r', provider_router_port_id)
+                found = True
+                break
+        assert found
 
         # Add a route for the floating ip in the provider
         response, content = self.mido_conn.routes().create(
