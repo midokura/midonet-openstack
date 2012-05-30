@@ -91,6 +91,7 @@ class MidonetL3Driver(L3Driver):
         response, routers = self.mido_conn.routers().list(tenant_id)
         LOG.debug('routers: %r', routers)
         tenant_router_id = None
+        found = False
         for r in routers:
             if r['name'] == tenant_router_name:
                 LOG.debug("Tenant Router found: %r", r)
