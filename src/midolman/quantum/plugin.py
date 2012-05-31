@@ -27,16 +27,13 @@ from quantum.common import exceptions as exception
 
 from midonet.client import MidonetClient
 from midonet.api import PortType
+from midolman.common.openstack import ChainName, RouterName
 
 
 LOG = logging.getLogger('MidonetPlugin')
 
 
 class MidonetPlugin(QuantumPluginBase):
-    PROVIDER_ROUTER_NAME = 'provider_router'
-    TENANT_ROUTER_NAME = 'os_project_router'
-    TENANT_ROUTER_CHAIN_IN = 'os_project_router_in'
-    TENANT_ROUTER_CHAIN_OUT = 'os_project_router_out'
 
     def __init__(self):
         config = ConfigParser.ConfigParser()
@@ -56,13 +53,13 @@ class MidonetPlugin(QuantumPluginBase):
             self.provider_router_name = config.get('midonet',
                                                     'provider_router_name')
         else:
-            self.provider_router_name = self.PROVIDER_ROUTER_NAME
+            self.provider_router_name = RouterName.PROVIDER_ROUTER
 
         if config.has_option('midonet', 'tenant_router_name'):
             self.tenant_router_name = config.get('midonet',
                                                     'tenant_router_name')
         else:
-            self.tenant_router_name = self.TENANT_ROUTER_NAME
+            self.tenant_router_name = RouterName.TENANT_ROUTER
 
         keystone_uri = config.get('keystone',
                                               'keystone_uri')
@@ -201,11 +198,11 @@ class MidonetPlugin(QuantumPluginBase):
 
             # create in-n-out chains for the tenant router
             response, content = self.mido_conn.chains().create(tenant_id,
-                    self.TENANT_ROUTER_CHAIN_IN)
+                    ChainName.TENANT_ROUTER_IN)
             response, in_chain = self.mido_conn.get(response['location'])
 
             response, content = self.mido_conn.chains().create(tenant_id,
-                    self.TENANT_ROUTER_CHAIN_OUT)
+                    ChainName.TENANT_ROUTER_OUT)
             response, out_chain = self.mido_conn.get(response['location'])
 
             # set in-n-out filter for the tenant router
