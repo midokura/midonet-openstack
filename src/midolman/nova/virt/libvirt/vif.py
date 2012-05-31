@@ -26,6 +26,7 @@ from nova.openstack.common import cfg
 from nova.virt.libvirt.vif import LibvirtOpenVswitchDriver
 
 from midolman.nova.network import midonet_connection
+from midonet.api import PortType
 
 
 midonet_opts = [
@@ -59,7 +60,7 @@ class MidonetVifDriver(LibvirtOpenVswitchDriver):
         if not tenant_id:
             tenant_id = FLAGS.quantum_default_tenant_id
 
-        # params for creating dhcp host 
+        # params for creating dhcp host
         bridge_id = network['id']
         subnet = network['cidr'].replace('/', '_')
         mac = mapping['mac']
@@ -83,18 +84,27 @@ class MidonetVifDriver(LibvirtOpenVswitchDriver):
         (tenant_id, bridge_id, subnet, mac, ip, name) = self._get_dhcp_data(
                 network, mapping)
 
-        response, vif = self.mido_conn.dhcp_hosts().create(tenant_id, 
-                                                           bridge_id, subnet,
-                                                           mac, ip, name)
+        response, content = self.mido_conn.dhcp_hosts().create(tenant_id,
+                bridge_id, subnet, mac, ip, name)
 
         # Get port id corresponding to the vif
-        response, vif = self.mido_conn.vifs().get(mapping['vif_uuid'])
-        LOG.debug('vif=%r is added to the ovs bridger.', vif)
+        response, bridge_ports = self.mido_conn.bridge_ports().list(tenant_id,
+                bridge_id)
+        # Search for the port that has the vif attached
+        found = False
+        for bp in bridge_ports:
+            if bp['type'] != PortType.MATERIALIZED_BRIDGE:
+                continue
+            if bp['vifId'] == mapping['vif_uuid']:
+                port_id = bp['id']
+                found = True
+                break
+        assert found
 
         # Set the external ID of the OVS port to the Midonet port UUID.
         utils.execute('ovs-vsctl', 'set', 'port', dev,
                       'external_ids:%s=%s' % (FLAGS.midonet_ovs_ext_id_key,
-                                              vif['portId']),
+                                              port_id),
                       run_as_root=True)
         return result
 
@@ -106,6 +116,5 @@ class MidonetVifDriver(LibvirtOpenVswitchDriver):
         (tenant_id, bridge_id, subnet, mac, ip, name) = self._get_dhcp_data(
                 network, mapping)
 
-        response, vif = self.mido_conn.dhcp_hosts().delete(tenant_id, 
-                                                           bridge_id, subnet,
-                                                           mac)
+        response, content = self.mido_conn.dhcp_hosts().delete(tenant_id,
+                bridge_id, subnet, mac)

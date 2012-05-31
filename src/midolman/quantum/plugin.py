@@ -374,25 +374,32 @@ class MidonetPlugin(QuantumPluginBase):
         Attaches a remote interface to the specified port on the
         specified Virtual Network.
         """
-        LOG.debug("plug_interface() called: tenant_id=%r, net_id=%r",
-                  tenant_id, net_id)
-        LOG.debug("     port_id=%r, vif_id=%r", port_id, vif_id)
-        response, content = self.mido_conn.vifs().create(vif_id, port_id)
-        response, vif = self.mido_conn.get(response['location'])
-        LOG.debug("vif=%r is created", vif)
+        LOG.debug("tenant_id=%r, net_id=%r, port_id=%r, vif_id=%r",
+                tenant_id, net_id, port_id, vif_id)
+        response, bridge_port = self.mido_conn.bridge_ports().get(tenant_id,
+                net_id, port_id)
+        bridge_port['vifId'] = vif_id
+        response, bridge_port = self.mido_conn.bridge_ports().update(tenant_id,
+                net_id, port_id, bridge_port)
+
+        LOG.debug("bridge_port=%r is updated.", bridge_port)
 
     def unplug_interface(self, tenant_id, net_id, port_id):
         """
         Detaches a remote interface from the specified port on the
         specified Virtual Network.
         """
-        LOG.debug("unplug_interface() called: tenant_id=%r, net_id=%r",
-                  tenant_id, net_id)
-        LOG.debug("    port_id=%r", port_id)
+        LOG.debug("tenant_id=%r, net_id=%r, port_id=%r",tenant_id, net_id,
+                port_id)
         response, bridge_port = self.mido_conn.bridge_ports().get(
                                                      tenant_id, net_id, port_id)
         LOG.debug('bridge_port: %r', bridge_port)
-        response, content  = self.mido_conn.vifs().delete(bridge_port['vifId'])
+        response, bridge_port = self.mido_conn.bridge_ports().get(tenant_id,
+                net_id, port_id)
+        bridge_port['vifId'] = None
+        response, bridge_port = self.mido_conn.bridge_ports().update(tenant_id,
+                net_id, port_id, bridge_port)
+
 
     supported_extension_aliases = ["FOXNSOX"]
 
