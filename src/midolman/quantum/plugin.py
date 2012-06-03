@@ -95,7 +95,8 @@ class MidonetPlugin(QuantumPluginBase):
             LOG.debug('Provider router(%r) not found. Creating...' %
                                                         self.provider_router_id)
             self.mido_conn.routers().create(self.provider_tenant_id,
-                             self.provider_router_name, self.provider_router_id)
+                                            self.provider_router_name,
+                                            router_id=self.provider_router_id)
 
     def get_all_networks(self, tenant_id, filter_opts=None):
         """
@@ -152,8 +153,20 @@ class MidonetPlugin(QuantumPluginBase):
 
         # if not found, create the tenant router and link it to the provider's
         if not found:
+
+            # create in-n-out chains for the tenant router
+            response, content = self.mido_conn.chains().create(tenant_id,
+                    ChainName.TENANT_ROUTER_IN)
+            response, in_chain = self.mido_conn.get(response['location'])
+
+            response, content = self.mido_conn.chains().create(tenant_id,
+                    ChainName.TENANT_ROUTER_OUT)
+            response, out_chain = self.mido_conn.get(response['location'])
+
             response, content = self.mido_conn.routers().create(
-                                                 tenant_id, tenant_router_name)
+                                                 tenant_id, tenant_router_name,
+                                                 in_chain['id'],
+                                                 out_chain['id'])
             response, tenant_router = self.mido_conn.get(response['location'])
             tenant_router_id = tenant_router['id']
 
@@ -195,21 +208,6 @@ class MidonetPlugin(QuantumPluginBase):
                     100,                  # weight
                     tenant_uplink_port_id,# next hop port
                     None)                 # next hop gateway
-
-            # create in-n-out chains for the tenant router
-            response, content = self.mido_conn.chains().create(tenant_id,
-                    ChainName.TENANT_ROUTER_IN)
-            response, in_chain = self.mido_conn.get(response['location'])
-
-            response, content = self.mido_conn.chains().create(tenant_id,
-                    ChainName.TENANT_ROUTER_OUT)
-            response, out_chain = self.mido_conn.get(response['location'])
-
-            # set in-n-out filter for the tenant router
-            response, content = self.mido_conn.routers().update(
-                    tenant_id, tenant_router['id'],
-                    tenant_router['name'],
-                    in_chain['id'], out_chain['id'])
 
         # create a bridge for this network
         response, content = self.mido_conn.bridges().create(tenant_id, net_name)
