@@ -1,4 +1,4 @@
-Source: midolman-nova
+Source: midonet-openstack
 Section: non-free/python
 Priority: extra
 Maintainer: Tomoe Sugihara <tomoe@midokura.com>
@@ -7,15 +7,15 @@ Uploaders: Ryu Ishimoto <ryu@midokura.com>,
  Giuseppe de Candia <pino@midokura.com>,
  Jacob Mandelson <jacob@midokura.jp>,
  Dan Dumitriu <dan@midokura.com>,
- Yoshi Tamura <yoshi@midokura.com> 
+ Yoshi Tamura <yoshi@midokura.com>
 Build-Depends: debhelper (>= 7.0.50~), autotools-dev, python, python-support,
  python-unittest2, python-all-dev
 Standards-Version: 3.9.1.0
-Homepage: https://github.com/midokura/midolman-nova
-Vcs-Git: https://github.com/midokura/midolman-nova.git
-Vcs-Browser: https://github.com/midokura/midolman-nova
+Homepage: https://github.com/midokura/midonet-openstack
+Vcs-Git: https://github.com/midokura/midonet-openstack.git
+Vcs-Browser: https://github.com/midokura/midonet-openstack
 
-Package: python-midolman-nova
+Package: python-midonet-openstack
 Architecture: all
 Depends: ${misc:Depends}, ${python:Depends}, python-midonet-client
 Description: OpenStack plugin for Midolman.

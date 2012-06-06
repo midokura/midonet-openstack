@@ -1,17 +1,5 @@
-midolman-nova (12.06~1) oneiric; urgency=low
+midonet-openstack (12.06~2) precise; urgency=low
 
-  * pre Babuza ~1
+  * pre Babuza ~2
 
- -- Tomoe Sugihara <tomoe@midokura.com>  Fri, 27 Apr 2012 09:57:50 +0900
-
-midolman-nova (11.11) natty; urgency=low
-
-  * Official Abaza Release
-
- -- Tomoe Sugihara <tomoe@midokura.com>  Fri, 21 Oct 2011 17:39:14 +0900
-
-midolman-nova (0.1.0) unstable; urgency=low
-
-  * Initial release.
-
- -- Dan Mihai Dumitriu <dan@midokura.com>  Fri, 16 Sep 2011 15:38:47 +0900
+ -- Tomoe Sugihara <tomoe@midokura.com>  Wed, 06 Jun 2012 17:29:14 +0900
