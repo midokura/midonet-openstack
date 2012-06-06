@@ -209,6 +209,16 @@ class MidonetPlugin(QuantumPluginBase):
                     tenant_uplink_port_id,# next hop port
                     None)                 # next hop gateway
 
+            # NOTE:create chain and port_groups for default security groups
+            # These should be supposedly handled by security group handler,
+            # but handler doesn't get called for deafault security group
+            response, content = self.mido_conn.chains().create(tenant_id,
+                    ChainName.SG_DEFAULT)
+
+            port_group_name = ChainName.SG_DEFAULT
+            response, content = self.mido_conn.port_groups().create(tenant_id,
+                    port_group_name)
+
         # create a bridge for this network
         response, content = self.mido_conn.bridges().create(tenant_id, net_name)
         response, content = self.mido_conn.get(

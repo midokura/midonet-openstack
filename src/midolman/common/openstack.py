@@ -19,8 +19,48 @@ class ChainName:
     TENANT_ROUTER_IN = 'os_project_router_in'
     TENANT_ROUTER_OUT = 'os_project_router_out'
 
+    PREFIX = 'os_sg_'
+    SUFFIX_IN = '_in'
+    SUFFIX_OUT = '_out'
+
+    SG_DEFAULT = PREFIX + 'default'
+
+    @classmethod
+    def sg_chain_name_prefix(cls, sg_id):
+        return cls.PREFIX + str(sg_id) + '_'
+
+    @classmethod
+    def sg_chain_name(cls, sg_id, sg_name):
+        prefix = cls.sg_chain_name_prefix(sg_id)
+        return prefix + sg_name
+
+    @classmethod
+    def vif_chain_prefix(cls):
+        return cls.PREFIX + 'vif_'
+
+    @classmethod
+    def chain_names_for_vif(cls, vif_uuid):
+        in_ = cls.vif_chain_prefix() + vif_uuid + cls.SUFFIX_IN
+        out = cls.vif_chain_prefix() + vif_uuid + cls.SUFFIX_OUT
+        return {'in': in_, 'out': out}
+
+    @classmethod
+    def is_chain_name_for_rule(cls, name, group_id, is_default):
+        if is_default == True:
+            return name == cls.SG_DEFAULT
+        else:
+            return name.startswith(cls.sg_chain_name_prefix(group_id))
+
+
 class RouterName:
     PROVIDER_ROUTER = 'provider_router'
     TENANT_ROUTER = 'os_project_router'
 
+
+class Rule:
+    OS_SG_KEY = 'os_sg_rule_id'
+
+    @classmethod
+    def properties(cls, os_sg_rule_id):
+        return {cls.OS_SG_KEY: str(os_sg_rule_id)}
 
