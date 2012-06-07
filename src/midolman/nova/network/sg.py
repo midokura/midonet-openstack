@@ -47,7 +47,7 @@ class MidonetFirewallDriver(FirewallDriver):
         ctxt = context.get_admin_context()
         #Allow project network traffic
         if FLAGS.allow_same_net_traffic:
-            #TODO: add appropreaet rules?
+            #TODO: add appropriate rules?
             pass
 
         # create chains for this vif
