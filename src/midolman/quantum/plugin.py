@@ -27,7 +27,7 @@ from quantum.common import exceptions as exception
 
 from midonet.client import MidonetClient
 from midonet.api import PortType
-from midolman.common.openstack import ChainName, RouterName
+from midolman.common.openstack import RouterName, ChainManager, PortGroupManager
 
 
 LOG = logging.getLogger('MidonetPlugin')
@@ -80,6 +80,8 @@ class MidonetPlugin(QuantumPluginBase):
                             ks_uri=keystone_uri,
                             username=admin_user, password=admin_password,
                             tenant_id=self.provider_tenant_id)
+        self.chain_manager = ChainManager(self.mido_conn)
+        self.pg_manager = PortGroupManager(self.mido_conn)
 
         # See if the provider tenant and router exist. If not, create them.
         try:
@@ -156,11 +158,11 @@ class MidonetPlugin(QuantumPluginBase):
 
             # create in-n-out chains for the tenant router
             response, content = self.mido_conn.chains().create(tenant_id,
-                    ChainName.TENANT_ROUTER_IN)
+                    ChainManager.TENANT_ROUTER_IN)
             response, in_chain = self.mido_conn.get(response['location'])
 
             response, content = self.mido_conn.chains().create(tenant_id,
-                    ChainName.TENANT_ROUTER_OUT)
+                    ChainManager.TENANT_ROUTER_OUT)
             response, out_chain = self.mido_conn.get(response['location'])
 
             response, content = self.mido_conn.routers().create(
@@ -212,12 +214,8 @@ class MidonetPlugin(QuantumPluginBase):
             # NOTE:create chain and port_groups for default security groups
             # These should be supposedly handled by security group handler,
             # but handler doesn't get called for deafault security group
-            response, content = self.mido_conn.chains().create(tenant_id,
-                    ChainName.SG_DEFAULT)
-
-            port_group_name = ChainName.SG_DEFAULT
-            response, content = self.mido_conn.port_groups().create(tenant_id,
-                    port_group_name)
+            self.chain_manager.create_for_sg(tenant_id, None, 'default')
+            self.pg_manager.create(tenant_id, None, 'default')
 
         # create a bridge for this network
         response, content = self.mido_conn.bridges().create(tenant_id, net_name)
