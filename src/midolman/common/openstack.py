@@ -233,20 +233,31 @@ class RuleManager:
         vif_uuid = network[1]['vif_uuid']
         mac = network[1]['mac']
 
-        # set conntrack on ingress
+        #
+        # ingress
+        #
+
+        position = 1
+        # arp spoofing protection
+        response, content = self.mido_conn.rules().create(tenant_id,
+                vif_chains['in']['id'], type_='drop',
+                dl_src=mac, inv_dl_src=True, position=position)
+        position += 1
+
+        # conntrack
         response, content = self.mido_conn.rules().create(tenant_id,
                 vif_chains['in']['id'], type_='accept',
-                match_forward_flow=True)
+                match_forward_flow=True, position=position)
+        position += 1
 
+        #
+        # egress
+        #
         ctxt = context.get_admin_context()
         security_groups = db.security_group_get_by_instance(ctxt,
                 instance['id'])
 
-        #
-        # set egress
-        #
         position = 1
-
         # get the port groups to match for the rule
         port_group_ids = []
         response, port_groups = self.mido_conn.port_groups().list(tenant_id)
