@@ -223,10 +223,15 @@ class RuleManager:
                     LOG.debug('deleting rule=%r', r)
                     response, content = self.mido_conn.delete(r['uri'])
 
-    def create_for_vif(self, tenant_id, instance, bridge_uuid, vif_uuid,
-            vif_chains):
-        LOG.debug('tenant_id=%r, instance=%r, bridge=%r, vif=%r, vif_chains=%r',
-                  tenant_id, instance['id'], bridge_uuid, vif_uuid, vif_chains)
+    def create_for_vif(self, tenant_id, instance, network, vif_chains,
+            allow_same_net_traffic):
+        LOG.debug('tenant_id=%r, instance=%r, network=%r, vif_chains=%r',
+                  tenant_id, instance['id'], network, vif_chains)
+
+        bridge_uuid = network[0]['id']
+        net_cidr = network[0]['cidr']
+        vif_uuid = network[1]['vif_uuid']
+        mac = network[1]['mac']
 
         # set conntrack on ingress
         response, content = self.mido_conn.rules().create(tenant_id,
@@ -246,6 +251,16 @@ class RuleManager:
         port_group_ids = []
         response, port_groups = self.mido_conn.port_groups().list(tenant_id)
 
+        if allow_same_net_traffic:
+            LOG.debug('accept cidr=%r', net_cidr)
+            nw_src_address, nw_src_length  = net_cidr.split('/')
+            response, content = self.mido_conn.rules().create(tenant_id,
+                    vif_chains['out']['id'], type_='accept',
+                    nw_src_address=nw_src_address, nw_src_length=nw_src_length,
+                    position=position)
+            position += 1
+
+        # add rules that correspond to Nova SG
         for sg in security_groups:
             LOG.debug('security group=%r', sg['name'])
             rules = db.security_group_rule_get_by_security_group(ctxt,

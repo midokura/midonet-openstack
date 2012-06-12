@@ -52,17 +52,12 @@ class MidonetFirewallDriver(FirewallDriver):
             return
 
         ctxt = context.get_admin_context()
-        #Allow project network traffic
-        if FLAGS.allow_same_net_traffic:
-            #TODO: add appropriate rules
-            pass
 
         # create chains for this vif
         tenant_id = instance['project_id']
 
         for network in network_info:
             vif_uuid = network[1]['vif_uuid']
-            bridge_uuid = network[0]['id']
 
             # create chains for this vif
             try:
@@ -73,8 +68,8 @@ class MidonetFirewallDriver(FirewallDriver):
                          instance['id'])
                 return
 
-            self.rule_manager.create_for_vif(tenant_id, instance, bridge_uuid,
-                vif_uuid, vif_chains)
+            self.rule_manager.create_for_vif(tenant_id, instance, network,
+                    vif_chains, FLAGS.allow_same_net_traffic)
 
     def unfilter_instance(self, instance, network_info):
         LOG.debug('instance=%r, network_info=%r', instance, network_info)
