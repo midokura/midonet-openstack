@@ -232,6 +232,7 @@ class RuleManager:
         net_cidr = network[0]['cidr']
         vif_uuid = network[1]['vif_uuid']
         mac = network[1]['mac']
+        ip = network[1]['ips'][0]['ip']
 
         #
         # ingress
@@ -242,6 +243,13 @@ class RuleManager:
         response, content = self.mido_conn.rules().create(tenant_id,
                 vif_chains['in']['id'], type_='drop',
                 dl_src=mac, inv_dl_src=True, position=position)
+        position += 1
+
+        # ip spoofing protection
+        response, content = self.mido_conn.rules().create(tenant_id,
+                vif_chains['in']['id'], type_='drop',
+                nw_src_address=ip, nw_src_length=32, inv_nw_src=True,
+                dl_type=0x0800, position=position)
         position += 1
 
         # conntrack
