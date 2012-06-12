@@ -156,7 +156,8 @@ class RuleManager:
         LOG.debug('putting a rule to the chain id=%r', sg_chain['id'])
 
         # construct a corresponding rule
-        tp_src_start = None # for ICMP type
+        tp_src_start = tp_src_end = None
+        tp_dst_start = tp_dst_end = None
         nw_src_address = None
         nw_src_length = None
         port_group_id = None
@@ -192,13 +193,15 @@ class RuleManager:
             icmp_type = rule['from_port']
             icmp_code = rule['to_port']
 
-            # null out previously set fields
-            tp_dst_start = None
-            tp_dst_end = None
+            # translate -1(wildcard in OS) to midonet wildcard
+            if icmp_type == -1:
+                icmp_type = None
+            if icmp_code == -1:
+                icmp_code = None
 
             # set data for midonet rule
-            tp_src_start = icmp_type
-            tp_dst_start = icmp_code
+            tp_src_start = tp_src_end = icmp_type
+            tp_dst_start = tp_dst_end = icmp_code
 
         # create an accept rule
         properties = self._properties(rule['id'])
@@ -206,8 +209,9 @@ class RuleManager:
                 sg_chain['id'], port_group=port_group_id,
                 type_='accept', nw_proto=nw_proto,
                 nw_src_address=nw_src_address, nw_src_length=nw_src_length,
+                tp_src_start=tp_src_start, tp_src_end=tp_src_end,
                 tp_dst_start=tp_dst_start, tp_dst_end=tp_dst_end,
-                tp_src_start=tp_src_start, properties=properties)
+                properties=properties)
 
 
     def delete_for_sg(self, tenant_id, rule_id):
