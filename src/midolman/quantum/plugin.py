@@ -258,6 +258,8 @@ class MidonetPlugin(QuantumPluginBase):
         for p in tr_ports:
             if p['type'] == PortType.MATERIALIZED_ROUTER:
                 continue
+            if p['peer'] is None:
+                continue
             response, peer_port = self.mido_conn.get(p['peer'])
             if peer_port['deviceId'] == net_id:
                 response, content = self.mido_conn.router_ports().unlink(
