@@ -249,22 +249,21 @@ class MidonetPlugin(QuantumPluginBase):
                 tenant_router_id = r['id']
 
         # Delete link between the tenant router and the bridge
-        # look for the port that is connected to the bridge
-        response, tr_ports = self.mido_conn.router_ports().list(
+        response, tr_pps = self.mido_conn.routers().peer_ports(
                 tenant_id, tenant_router_id)
 
-        LOG.debug('tr_ports=%r', tr_ports)
+        LOG.debug('Tenant router peer ports=%r', tr_pps)
         found = False
-        for p in tr_ports:
+        for p in tr_pps:
             if p['type'] == PortType.MATERIALIZED_ROUTER:
                 continue
-            if p['peer'] is None:
-                continue
-            response, peer_port = self.mido_conn.get(p['peer'])
-            if peer_port['deviceId'] == net_id:
+            if p['deviceId'] == net_id:
                 response, content = self.mido_conn.router_ports().unlink(
-                        tenant_id, tenant_router_id, p['id'])
+                        tenant_id, tenant_router_id, p['peerId'])
+                tr_port = p['peerId']
+                br_port = p['id']
                 found = True
+                break
         assert found
 
         # Delete the bridge
@@ -272,8 +271,22 @@ class MidonetPlugin(QuantumPluginBase):
             response, content = self.mido_conn.bridges().delete(
                     tenant_id, net_id)
         except Exception as e:
-            LOG.debug("Delete bridge got an exception: %r.", e)
-            LOG.debug("Since unlink succeeded, the exception was swallowed")
+            LOG.debug('Delete bridge got an exception: %r.', e)
+            raise exception.Error('Failed to delete the bridge=%s. ' % net_id +
+                                  'Link between %r and %r must be put back.' %
+                                  (tr_port, br_port))
+
+        # Delete the logical port in tenant router
+        response, content = self.mido_conn.router_ports().delete(
+                        tenant_id, tenant_router_id, tr_port)
+
+        # Delete routes destined to the tenant router port
+        response, routes = self.mido_conn.routes().list(tenant_id,
+                tenant_router_id)
+        for r in routes:
+            if r['nextHopPort'] == tr_port:
+                LOG.debug('delete route=%r', r['id'])
+                response, content = self.mido_conn.delete(r['uri'])
 
     def get_network_details(self, tenant_id, net_id):
         """
