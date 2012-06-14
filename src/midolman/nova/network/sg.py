@@ -104,7 +104,6 @@ class MidonetFirewallDriver(FirewallDriver):
 
     def instance_filter_exists(self, instance, network_info):
         LOG.debug('instance=%r, network_info=%r', instance, network_info)
-        #TODO: Implement this
         return True
 
 class MidonetSecurityGroupHandler(SecurityGroupHandlerBase):
