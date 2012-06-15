@@ -109,6 +109,7 @@ class MidonetL3Driver(L3Driver):
         for p in pr_pps:
             if p['deviceId'] == tenant_router_id:
                 provider_router_port_id = p['peerId']
+                tenant_router_port_id = p['id']
                 LOG.debug('provider_router_port_id=%r', provider_router_port_id)
                 found = True
                 break
@@ -132,13 +133,15 @@ class MidonetL3Driver(L3Driver):
         # Add DNAT rule to the tenant router
         response, content = self.mido_conn.rules().create_dnat_rule(
                                         tenant_id, in_chain_id,
-                                        floating_ip, fixed_ip)
+                                        floating_ip, fixed_ip,
+                                        [tenant_router_port_id])
         LOG.debug('Create DNAT: %r ', response)
 
         # Add SNAT rule to the tenant router
         response, content = self.mido_conn.rules().create_snat_rule(
                                         tenant_id, out_chain_id,
-                                        floating_ip, fixed_ip)
+                                        floating_ip, fixed_ip,
+                                        [tenant_router_port_id])
         LOG.debug('Create NAT: %r', response)
 
     def remove_floating_ip(self, floating_ip, fixed_ip, l3_interface_id):
