@@ -1,4 +1,4 @@
-# Copyright (C) 2012 Midokura KK
+# Copyright (C) 2012 Midokur Japan, KK
 # All Rights Reserved.
 #
 #    Licensed under the Apache License, Version 2.0 (the "License"); you may
@@ -13,20 +13,9 @@
 #    License for the specific language governing permissions and limitations
 #    under the License.
 
-from nova import context
-from nova import db
-from nova import flags
-from nova import utils
-from nova.openstack.common import cfg
 from nova.virt.xenapi.vif import XenAPIOpenVswitchDriver
-from nova import log as logging
-
 from midolman.nova.network import midonet_connection
 from midonet.api import PortType
-from midonet.client import MidonetClient
-
-FLAGS = flags.FLAGS
-LOG = logging.getLogger(__name__)
 
 
 class XenAPIMidoNetDriver(XenAPIOpenVswitchDriver):
@@ -38,18 +27,13 @@ class XenAPIMidoNetDriver(XenAPIOpenVswitchDriver):
 
     def plug(self, instance, vif, vm_ref=None, device=None):
         vif_rec = super(self.__class__, self).plug(instance, vif, vm_ref, device)
-        # Get the tenant id
+
         tenant_id = vif['network']['meta']['tenant_id']
-        # Get the bridge id
         bridge_id = vif['network']['id']
-        # Get the subnet
         subnet = vif['network']['subnets'][0]['cidr'].replace('/', '_')
-        # Get the MAC address
         mac = vif_rec['MAC']
-        # Get the vif id
-        name = vif['id']
-        # Get ip address
         ip = vif['network']['subnets'][0]['ips'][0]['address']
+        name = vif['id']
 
         # Create DHCP host
         response, content = self.mido_conn.dhcp_hosts().create(tenant_id, bridge_id, subnet, mac, ip, name)
@@ -59,15 +43,11 @@ class XenAPIMidoNetDriver(XenAPIOpenVswitchDriver):
         # Search for the port that has the vif attached
         found = False
         for bp in bridge_ports:
-            if bp['type'] != PortType.MATERIALIZED_BRIDGE:
-                continue
-            if bp['vifId'] == name:
+            if bp['type'] == PortType.MATERIALIZED_BRIDGE and bp['vifId'] == name:
                 port_id = bp['id']
                 found = True
                 break
         assert found
 
         vif_rec['other_config'] = {'midonet-vnet': port_id}
-
-        LOG.debug('vif_rec %s' % vif_rec)
         return vif_rec
