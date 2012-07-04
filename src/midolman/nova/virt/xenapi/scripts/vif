@@ -31,7 +31,7 @@ handle_promiscuous()
     if [ $? -eq 0 -a -n "${arg}" ] ; then
         case $NETWORK_MODE in
             bridge)
-                case "${arg}" in 
+                case "${arg}" in
                     true|on) echo 1 > /sys/class/net/${dev}/brport/promisc ;;
                     *) echo 0 > /sys/class/net/${dev}/brport/promisc ;;
                 esac
@@ -86,7 +86,7 @@ handle_vswitch_vif_details()
     # MidoNet port id
     vif_id=$(xe vif-list --minimal vm-uuid=${vm_uuid} 2>/dev/null)
     midonet_port_id=$(xe vif-param-list uuid=${vif_id} | grep other-config | awk '{FS=":"};{print $4}')
-    
+
     if [ -n "${vm_uuid}" ] ; then
         set_vif_external_id "midolman-vnet" "${midonet_port_id}"
     fi
@@ -99,7 +99,7 @@ add_to_bridge()
         logger -t scripts-vif "Failed to read ${PRIVATE}/bridge-MAC from xenstore"
         exit 1
     fi
-    
+
     # Set mido0 bridge
     local bridge="mido0"
     if [ $? -ne 0 -o -z "${bridge}" ]; then
@@ -205,7 +205,7 @@ case ${TYPE} in
         DOMID=`echo ${dev#tap} | cut -f 1 -d '.'`
         DEVID=`echo ${dev#tap} | cut -f 2 -d '.'`
         ;;
-    *)  
+    *)
         logger -t scripts-vif "unknown interface type ${TYPE}"
         exit 1
         ;;
