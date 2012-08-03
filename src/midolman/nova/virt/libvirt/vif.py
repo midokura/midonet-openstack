@@ -83,7 +83,15 @@ class MidonetVifDriver(LibvirtOpenVswitchDriver):
         (tenant_id, bridge_id, subnet, mac, ip, name) = self._get_dhcp_data(
                 network, mapping)
 
-        response, content = self.mido_conn.dhcp_hosts().create(tenant_id,
+        # Check IP address and Mac Address for Live Migration
+        response, dhcp_hosts = self.mido_conn.dhcp_hosts().list(tenant_id, bridge_id, subnet)
+        dhcp_host_exist = False
+        for dhcp in dhcp_hosts:
+            if dhcp['macAddr'] == mac and dhcp['ipAddr'] == ip:
+                 dhcp_host_exist = True
+
+        if not dhcp_host_exist:
+            response, content = self.mido_conn.dhcp_hosts().create(tenant_id,
                 bridge_id, subnet, mac, ip, name)
 
         # Get port id corresponding to the vif
