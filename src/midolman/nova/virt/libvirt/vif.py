@@ -89,6 +89,7 @@ class MidonetVifDriver(LibvirtOpenVswitchDriver):
         for dhcp in dhcp_hosts:
             if dhcp['macAddr'] == mac and dhcp['ipAddr'] == ip:
                  dhcp_host_exist = True
+                 break
 
         if not dhcp_host_exist:
             response, content = self.mido_conn.dhcp_hosts().create(tenant_id,
