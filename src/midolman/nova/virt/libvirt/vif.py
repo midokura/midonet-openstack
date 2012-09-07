@@ -68,16 +68,49 @@ class MidonetVifDriver(LibvirtOpenVswitchDriver):
 
         return (tenant_id, bridge_id, subnet, mac, ip, name)
 
+    def _get_dev_name(self, instance_uuid, vif_uuid):
+        dev_name = "os-vif-" + instance_uuid[:4] + '-' + vif_uuid[:4]
+        return dev_name
+
+    def _get_vport_id(self, tenant_id, bridge_id, vif_uuid):
+        # Get port id corresponding to the vif
+        response, bridge_ports = self.mido_conn.bridge_ports().list(tenant_id,
+                bridge_id)
+
+        # Search for the port that has the vif attached
+        found = False
+        for bp in bridge_ports:
+            if bp['type'] != PortType.MATERIALIZED_BRIDGE:
+                continue
+            if bp['vifId'] == vif_uuid:
+                port_id = bp['id']
+                found = True
+                break
+        assert found
+        return port_id
+
+    def _get_host_uuid(self):
+        # quick-n-dirty for now
+        f = open('/var/run/midolman/host_uuid.properties')
+        lines = f.readlines()
+        host_uuid=filter(lambda x: x.startswith('host_uuid='), lines)[0].strip()[len('host_uuid='):]
+        return host_uuid
+
     def plug(self, instance, network, mapping):
         LOG.debug('instance=%r, network=%r, mapping=%r', instance, network,
                                                          mapping)
+        dev_name = self._get_dev_name(instance['uuid'], mapping['vif_uuid'])
+        utils.execute('ip', 'tuntap', 'add', dev_name, 'mode', 'tap', run_as_root=True)
+        utils.execute('ip', 'link', 'set', dev_name, 'up', run_as_root=True)
 
-        # Call the parent method to set up OVS
-        result = super(self.__class__, self).plug(instance, network, mapping)
-        dev = result['name']
+        result = {}
+        result['name'] = dev_name
+        result['mac_address'] = mapping['mac']
+        result['script'] = ''
+
 
         # Not ideal to do this every time, but set the MTU to something big.
-        utils.execute('ip', 'link', 'set', dev, 'mtu', FLAGS.midonet_tap_mtu,
+        utils.execute('ip', 'link', 'set', dev_name, 'mtu', FLAGS.midonet_tap_mtu,
                       run_as_root=True)
 
         (tenant_id, bridge_id, subnet, mac, ip, name) = self._get_dhcp_data(
@@ -95,34 +128,29 @@ class MidonetVifDriver(LibvirtOpenVswitchDriver):
             response, content = self.mido_conn.dhcp_hosts().create(tenant_id,
                 bridge_id, subnet, mac, ip, name)
 
-        # Get port id corresponding to the vif
-        response, bridge_ports = self.mido_conn.bridge_ports().list(tenant_id,
-                bridge_id)
-        # Search for the port that has the vif attached
-        found = False
-        for bp in bridge_ports:
-            if bp['type'] != PortType.MATERIALIZED_BRIDGE:
-                continue
-            if bp['vifId'] == mapping['vif_uuid']:
-                port_id = bp['id']
-                found = True
-                break
-        assert found
 
-        # Set the external ID of the OVS port to the Midonet port UUID.
-        utils.execute('ovs-vsctl', 'set', 'port', dev,
-                      'external_ids:%s=%s' % (FLAGS.midonet_ovs_ext_id_key,
-                                              port_id),
-                      run_as_root=True)
+        host_uuid = self._get_host_uuid()
+        port_id = self._get_vport_id(tenant_id, bridge_id, mapping['vif_uuid'])
+        self.mido_conn.hosts().add_interface_port_map(host_uuid, port_id, dev_name)
+
         return result
 
     def unplug(self, instance, network, mapping):
         LOG.debug('instance=%r, network=%r, mapping=%r', instance, network,
                                                          mapping)
-        super(self.__class__, self).unplug(instance, network, mapping)
 
         (tenant_id, bridge_id, subnet, mac, ip, name) = self._get_dhcp_data(
                 network, mapping)
 
         response, content = self.mido_conn.dhcp_hosts().delete(tenant_id,
                 bridge_id, subnet, mac)
+
+        port_id = self._get_vport_id(tenant_id, bridge_id, mapping['vif_uuid'])
+
+        host_uuid = self._get_host_uuid()
+        self.mido_conn.hosts().del_interface_port_map(host_uuid, port_id)
+
+        dev_name = self._get_dev_name(instance['uuid'], mapping['vif_uuid'])
+        utils.execute('ip', 'link', 'delete', dev_name, run_as_root=True)
+
+
