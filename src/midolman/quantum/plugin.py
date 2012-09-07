@@ -83,13 +83,6 @@ class MidonetPlugin(QuantumPluginBase):
         self.chain_manager = ChainManager(self.mido_conn)
         self.pg_manager = PortGroupManager(self.mido_conn)
 
-        # See if the provider tenant and router exist. If not, create them.
-        try:
-            self.mido_conn.tenants().get(self.provider_tenant_id)
-        except exc.HTTPNotFound:
-            LOG.debug('Admin tenant(%r) not found. Creating...' %
-                                                            self.provider_tenant_id)
-            self.mido_conn.tenants().create(self.provider_tenant_id)
         try:
             self.mido_conn.routers().get(self.provider_tenant_id,
                                          self.provider_router_id)
@@ -129,16 +122,6 @@ class MidonetPlugin(QuantumPluginBase):
         """
         LOG.debug("tenant_id=%r, net_name=%r, kwargs: %r",
                   tenant_id, net_name, kwargs)
-
-        try:
-            self.mido_conn.tenants().get(tenant_id)
-
-        except exc.HTTPNotFound:
-            LOG.debug("Creating tenant: %r", tenant_id)
-            self.mido_conn.tenants().create(tenant_id)
-        except Exception as e:
-            LOG.debug("Create tenant in midonet got exception: %r", e)
-            raise e
 
         tenant_router_name = self.tenant_router_name
         LOG.debug("Midonet Tenant Router Name: %r", tenant_router_name)
