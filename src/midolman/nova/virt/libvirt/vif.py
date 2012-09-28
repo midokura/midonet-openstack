@@ -42,7 +42,6 @@ FLAGS.register_opts(midonet_opts)
 # Add 'nova' prefix for nova's logging setting
 LOG = logging.getLogger('nova...' + __name__)
 
-
 class MidonetVifDriver(LibvirtOpenVswitchDriver):
     """VIF driver for Midonet."""
 
@@ -124,5 +123,123 @@ class MidonetVifDriver(LibvirtOpenVswitchDriver):
         (tenant_id, bridge_id, subnet, mac, ip, name) = self._get_dhcp_data(
                 network, mapping)
 
+        response, content = self.mido_conn.dhcp_hosts().delete(tenant_id,
+                bridge_id, subnet, mac)
+
+# Quick and dirty support for LXC. Needs refactoring to get rid of duplicates.
+class MidonetLxcVifDriver:
+    """LXC VIF driver for Midonet."""
+
+    # Super class doesn't have ctor, so it doesn't need to call super()
+    def __init__(self):
+        self.mido_conn = midonet_connection.get_connection()
+
+    def _get_dhcp_data(self, network, mapping):
+
+        # Get tenant id from db
+        network_ref = db.network_get_by_uuid(context.get_admin_context(),
+                                             network['id'])
+        tenant_id = network_ref['project_id']
+        if not tenant_id:
+            tenant_id = FLAGS.quantum_default_tenant_id
+
+        # params for creating dhcp host
+        bridge_id = network['id']
+        subnet = network['cidr'].replace('/', '_')
+        mac = mapping['mac']
+        ip = mapping['ips'][0]['ip']
+        name = mapping['vif_uuid']
+
+        return (tenant_id, bridge_id, subnet, mac, ip, name)
+
+    
+    def _get_dev_name(self, instance_uuid, vif_uuid):
+        dev_name = "vif-" + instance_uuid[:4] + '-' + vif_uuid[:4]
+        return dev_name
+
+    def plug(self, instance, network, mapping):
+        LOG.debug('instance=%r, network=%r, mapping=%r', instance, network,
+                                                         mapping)
+
+        dev_name = self._get_dev_name(instance['uuid'], mapping['vif_uuid'])
+        peer_dev_name = dev_name + 'lv'  # peer device name to give libvirt
+
+        utils.execute('ip', 'link', 'add', 'name', dev_name,  'type', 'veth',
+            'peer', 'name', peer_dev_name, run_as_root=True)
+
+        utils.execute('ip', 'link', 'set', 'dev', peer_dev_name, 'address', 
+                mapping['mac'], run_as_root=True)
+
+        utils.execute('ip', 'link', 'set', dev_name, 'up', run_as_root=True)
+    
+        iface_id = mapping['vif_uuid']
+
+        # Call the parent method to set up OVS
+        utils.execute('ovs-vsctl', '--', '--may-exist', 'add-port',
+                FLAGS.libvirt_ovs_bridge, dev_name,
+                '--', 'set', 'Interface', dev_name,
+                "external-ids:iface-id=%s" % iface_id,
+                '--', 'set', 'Interface', dev_name,
+                "external-ids:iface-status=active",
+                '--', 'set', 'Interface', dev_name,
+                "external-ids:attached-mac=%s" % mapping['mac'],
+                '--', 'set', 'Interface', dev_name,
+                "external-ids:vm-uuid=%s" % instance['uuid'],
+                run_as_root=True)
+
+        result = {
+            'script': '',
+            'name': peer_dev_name,
+            'mac_address': mapping['mac']}
+
+
+        # Not ideal to do this every time, but set the MTU to something big.
+        utils.execute('ip', 'link', 'set', dev_name, 'mtu', FLAGS.midonet_tap_mtu,
+                      run_as_root=True)
+
+        (tenant_id, bridge_id, subnet, mac, ip, name) = self._get_dhcp_data(
+                network, mapping)
+
+        # Check IP address and Mac Address for Live Migration
+        response, dhcp_hosts = self.mido_conn.dhcp_hosts().list(tenant_id, bridge_id, subnet)
+        dhcp_host_exist = False
+        for dhcp in dhcp_hosts:
+            if dhcp['macAddr'] == mac and dhcp['ipAddr'] == ip:
+                 dhcp_host_exist = True
+                 break
+
+        if not dhcp_host_exist:
+            response, content = self.mido_conn.dhcp_hosts().create(tenant_id,
+                bridge_id, subnet, mac, ip, name)
+
+        # Get port id corresponding to the vif
+        response, bridge_ports = self.mido_conn.bridge_ports().list(tenant_id,
+                bridge_id)
+        # Search for the port that has the vif attached
+        found = False
+        for bp in bridge_ports:
+            if bp['type'] != PortType.MATERIALIZED_BRIDGE:
+                continue
+            if bp['vifId'] == mapping['vif_uuid']:
+                port_id = bp['id']
+                found = True
+                break
+        assert found
+
+        # Set the external ID of the OVS port to the Midonet port UUID.
+        utils.execute('ovs-vsctl', 'set', 'port', dev_name,
+                      'external_ids:%s=%s' % (FLAGS.midonet_ovs_ext_id_key,
+                                              port_id),
+                      run_as_root=True)
+        return result
+
+    def unplug(self, instance, network, mapping):
+        LOG.debug('instance=%r, network=%r, mapping=%r', instance, network,
+                                                         mapping)
+
+        (tenant_id, bridge_id, subnet, mac, ip, name) = self._get_dhcp_data(
+                network, mapping)
+
+        dev_name = self._get_dev_name(instance['uuid'], mapping['vif_uuid'])
         response, content = self.mido_conn.dhcp_hosts().delete(tenant_id,
                 bridge_id, subnet, mac)
