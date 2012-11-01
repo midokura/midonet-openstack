@@ -91,7 +91,7 @@ class MidonetVifDriver(LibvirtOpenVswitchDriver):
 
     def _get_host_uuid(self):
         # quick-n-dirty for now
-        f = open('/var/run/midolman/host_uuid.properties')
+        f = open('/etc/midolman/host_uuid.properties')
         lines = f.readlines()
         host_uuid=filter(lambda x: x.startswith('host_uuid='), lines)[0].strip()[len('host_uuid='):]
         return host_uuid
