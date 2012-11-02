@@ -69,7 +69,7 @@ class MidonetVifDriver(LibvirtOpenVswitchDriver):
         return (tenant_id, bridge_id, subnet, mac, ip, name)
 
     def _get_dev_name(self, instance_uuid, vif_uuid):
-        dev_name = "os-vif-" + instance_uuid[:4] + '-' + vif_uuid[:4]
+        dev_name = "osvm-" + instance_uuid[:4] + '-' + vif_uuid[:4]
         return dev_name
 
     def _get_vport_id(self, tenant_id, bridge_id, vif_uuid):
