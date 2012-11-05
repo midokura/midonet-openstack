@@ -160,8 +160,8 @@ class MidonetPlugin(QuantumPluginBase):
                     self.provider_tenant_id,
                     self.provider_router_id,
                     PortType.LOGICAL_ROUTER,
-                    '10.0.0.0', 30,
-                    '10.0.0.1')
+                    '169.254.255.0', 30,
+                    '169.254.255.1')
             response, provider_port = self.mido_conn.get(response['location'])
             LOG.debug('provider_port=%r', provider_port)
 
@@ -170,8 +170,8 @@ class MidonetPlugin(QuantumPluginBase):
                     tenant_id,
                     tenant_router_id,
                     PortType.LOGICAL_ROUTER,
-                    '10.0.0.0', 30,
-                    '10.0.0.2')
+                    '169.254.255.0', 30,
+                    '169.254.255.2')
             response, tenant_port = self.mido_conn.get(response['location'])
             LOG.debug('tenant_port=%r', tenant_port)
 
