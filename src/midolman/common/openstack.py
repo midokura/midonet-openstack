@@ -294,9 +294,18 @@ class RuleManager:
             LOG.debug('rules=%r', rules)
 
             cname = chain_name(sg['id'], sg['name'])
+            response, chains = self.mido_conn.chains().list(tenant_id)
+            jump_chain_id = None
+            for c in chains:
+                if c['name'] == cname:
+                    jump_chain_id = c['id']
+                    break
+            assert jump_chain_id != None
+
             response, content = self.mido_conn.rules().create(tenant_id,
                     vif_chains['out']['id'], type_='jump',
-                    jump_chain_name=cname, position=position)
+                    jump_chain_name=cname, jump_chain_id=jump_chain_id,
+                    position=position)
             position += 1
 
             # Look for the port group that the vif should belong to
