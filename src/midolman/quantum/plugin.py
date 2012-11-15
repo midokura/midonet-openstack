@@ -1,6 +1,4 @@
-# vim: tabstop=4 shiftwidth=4 softtabstop=4
-# Copyright (C) 2012 Midokura Japan K.K.
-#
+# Copyright (C) 2012 Midokura Japan K.K. 
 # All Rights Reserved.
 #
 #    Licensed under the Apache License, Version 2.0 (the "License"); you may
@@ -14,414 +12,191 @@
 #    WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the
 #    License for the specific language governing permissions and limitations
 #    under the License.
+# @author: Takaaki Suzuki Midokura Japan KK
 
-import ConfigParser
 import logging
-import sys
-import webob.exc as exc
-
-from quantum.quantum_plugin_base import QuantumPluginBase
-from quantum.api.api_common import OperationalStatus
-from quantum.common.config import find_config_file
+import ConfigParser
+from midonet.client.mgmt import MidonetMgmt
+from midonet.client.web_resource import WebResource
+from midonet.auth.keystone import KeystoneAuth
+from quantum.db import db_base_plugin_v2
+from quantum.db import api as db
+from quantum.db import models_v2
+from quantum.api.v2 import attributes
+from quantum.common.utils import find_config_file
 from quantum.common import exceptions as exception
 
-from midonet.client import MidonetClient
-from midonet.api import PortType
-from midolman.common.openstack import RouterName, ChainManager, PortGroupManager
+LOG = logging.getLogger('MidoNetPlugin')
+LOG.setLevel(logging.DEBUG)
 
-
-LOG = logging.getLogger('MidonetPlugin')
-
-
-class MidonetPlugin(QuantumPluginBase):
+class MidoNetPluginV2(db_base_plugin_v2.QuantumDbPluginV2):
 
     def __init__(self):
-        config = ConfigParser.ConfigParser()
-
-        config_file = find_config_file({"plugin":"midonet"}, None,
+        # Read plugin config file
+        config = ConfigParser.RawConfigParser()
+        config_file = find_config_file({"plugin":"midonet"},
                                         "midonet_plugin.ini")
         if not config_file:
-            raise Exception("Configuration file \"%s\" doesn't exist" %
-                             "midonet_plugin.ini")
-
-        # Read config values
+            raise Exception("Configuration file %s doesn't exist" %
+                            "midonet_plugin.ini")
         config.read(config_file)
-        midonet_uri = config.get('midonet', 'midonet_uri')
-        self.provider_router_id = config.get('midonet', 'provider_router_id')
 
-        if config.has_option('midonet', 'provider_router_name'):
-            self.provider_router_name = config.get('midonet',
-                                                    'provider_router_name')
-        else:
-            self.provider_router_name = RouterName.PROVIDER_ROUTER
+        # add keystone auth
+        admin_pass = config.get('keystone', 'admin_password')
+        keystone_uri = config.get('keystone', 'keystone_uri')
+        auth = KeystoneAuth(uri=keystone_uri,
+                            username='admin', password=admin_pass,
+                            tenant_name='admin')
+        web_resource = WebResource(auth, logger=LOG)
+        # Create MidoNetClient
+        self.mido_mgmt = MidonetMgmt(web_resource=web_resource, logger=LOG)
 
-        if config.has_option('midonet', 'tenant_router_name'):
-            self.tenant_router_name = config.get('midonet',
-                                                    'tenant_router_name')
-        else:
-            self.tenant_router_name = RouterName.TENANT_ROUTER
+        # Create sql connection
+        sql_connection = config.get('mysql', 'sql_connection')
+        sql_max_retries = config.get('mysql', 'sql_max_retries')
+        LOG.debug("sql_connection %r", sql_connection)
+        LOG.debug("sql_max_retries %r", sql_max_retries)
 
-        keystone_uri = config.get('keystone',
-                                              'keystone_uri')
-        admin_user = config.get('keystone', 'admin_user')
-        admin_password = config.get('keystone', 'admin_password')
-        self.provider_tenant_id = config.get('keystone', 'provider_tenant_id')
+        options = {
+            'sql_connection': sql_connection,
+            'sql_max_retries': sql_max_retries,
+            'base': models_v2.model_base.BASEV2,
+        }
+        db.configure_db(options)
 
-        LOG.debug('------midonet plugin config:')
-        LOG.debug('midonet_uri: %r', midonet_uri)
-        LOG.debug('provider_router_id: %r', self.provider_router_id)
-        LOG.debug('keystone_uri: %r', keystone_uri)
-        LOG.debug('admin_user: %r', admin_user)
-        LOG.debug('admin_password: %r', admin_password)
-        LOG.debug('provider_tenant_id: %r',  self.provider_tenant_id)
-
-        self.mido_conn = MidonetClient(
-                            midonet_uri=midonet_uri,
-                            ks_uri=keystone_uri,
-                            username=admin_user, password=admin_password,
-                            tenant_id=self.provider_tenant_id)
-        self.chain_manager = ChainManager(self.mido_conn)
-        self.pg_manager = PortGroupManager(self.mido_conn)
-
-        # See if the provider tenant and router exist. If not, create them.
-        try:
-            self.mido_conn.tenants().get(self.provider_tenant_id)
-        except exc.HTTPNotFound:
-            LOG.debug('Admin tenant(%r) not found. Creating...' %
-                                                            self.provider_tenant_id)
-            self.mido_conn.tenants().create(self.provider_tenant_id)
-        try:
-            self.mido_conn.routers().get(self.provider_tenant_id,
-                                         self.provider_router_id)
-        except LookupError as e:
-            LOG.debug('Provider router(%r) not found. Creating...' %
-                                                        self.provider_router_id)
-            self.mido_conn.routers().create(self.provider_tenant_id,
-                                            self.provider_router_name,
-                                            router_id=self.provider_router_id)
-
-    def get_all_networks(self, tenant_id, filter_opts=None):
+    def create_subnet(self, context, subnet):
         """
-        Returns a dictionary containing all
-        <network_uuid, network_name> for
-        the specified tenant.
+        Create DHCP entry for bridge of MidoNet
         """
-        LOG.debug("get_all_networks() called with tenant_id %r", tenant_id)
+        pass
 
-        bridges = []
-        try:
-            response, bridges = self.mido_conn.bridges().list(tenant_id)
-            LOG.debug("Bridges: %r", bridges)
-        except exc.HTTPNotFound as e:
-            LOG.debug(e)
-            LOG.debug("Returning empty list for non-existent tenant")
+    def get_subnet(self, context, id, fields=None):
+        """
+        Get midonet bridge information.
+        """
+        pass
 
-        res = []
+    def get_subnets(self, context, filters=None, fields=None):
+        """
+        List midonet bridge information.
+        """
+        pass
+
+    def delete_subnet(self, context, id):
+        """
+        Delete midonet bridge
+        """
+        pass
+
+    def create_network(self, context, network):
+        """
+        Create bridge of midonet
+        """
+        session = context.session
+        with session.begin(subtransactions=True):
+            bridge = self.mido_mgmt.add_bridge().name(
+                 network['network']['name']).tenant_id(
+                             context.tenant_id).create()
+            network['network']['id'] = bridge.get_id()
+            net = super(MidoNetPluginV2, self).create_network(context, network)
+        return net
+
+    def update_network(self, context, id, network):
+        """
+        Update bridge name
+        """
+        session = context.session
+        with session.begin(subtransactions=True):
+            net = super(MidoNetPluginV2, self).update_network(
+                                              context, id, network)
+            bridges = self.mido_mgmt.get_bridges(
+                    {'tenant_id':context.tenant_id})
+            found = False
+            for b in bridges:
+                if net['id'] == b.get_id():
+                    b.name(net['name']).update()
+                    found = True
+                    break
+            if not found:
+                raise Exception("Databases are out of Sync.")
+        return net
+
+    def get_network(self, context, id, fields=None):
+        """
+        Get a bridge of midonet
+        """
+        found = False
+        net = super(MidoNetPluginV2, self).get_network(context, id, None)
+        bridges = self.mido_mgmt.get_bridges({'tenant_id':context.tenant_id})
         for b in bridges:
-            res.append({'net-id': b['id'], 'net-name': b['name'],
-                        'net-op-status': OperationalStatus})
-        return res
-
-    def create_network(self, tenant_id, net_name, **kwargs):
-        """
-        Creates a new Virtual Network, and assigns it
-        a symbolic name.
-        """
-        LOG.debug("tenant_id=%r, net_name=%r, kwargs: %r",
-                  tenant_id, net_name, kwargs)
-
-        try:
-            self.mido_conn.tenants().get(tenant_id)
-
-        except exc.HTTPNotFound:
-            LOG.debug("Creating tenant: %r", tenant_id)
-            self.mido_conn.tenants().create(tenant_id)
-        except Exception as e:
-            LOG.debug("Create tenant in midonet got exception: %r", e)
-            raise e
-
-        tenant_router_name = self.tenant_router_name
-        LOG.debug("Midonet Tenant Router Name: %r", tenant_router_name)
-        # do get routers to see if the tenant already has its tenant router.
-        response, content = self.mido_conn.routers().list(tenant_id)
-
-        found = False
-        tenant_router_id = None
-        for r in content:
-            if r['name'] == tenant_router_name:
-                LOG.debug("Tenant Router found")
-                found = True
-                tenant_router_id = r['id']
-
-        # if not found, create the tenant router and link it to the provider's
+            if b.get_id() == net['id'] and b.get_name() == net['name']:
+               found = True
+               break
         if not found:
+           raise Exception("Databases are out of Sync.")
+        return net
 
-            # create in-n-out chains for the tenant router
-            response, content = self.mido_conn.chains().create(tenant_id,
-                    ChainManager.TENANT_ROUTER_IN)
-            response, in_chain = self.mido_conn.get(response['location'])
-
-            response, content = self.mido_conn.chains().create(tenant_id,
-                    ChainManager.TENANT_ROUTER_OUT)
-            response, out_chain = self.mido_conn.get(response['location'])
-
-            response, content = self.mido_conn.routers().create(
-                                                 tenant_id, tenant_router_name,
-                                                 in_chain['id'],
-                                                 out_chain['id'])
-            response, tenant_router = self.mido_conn.get(response['location'])
-            tenant_router_id = tenant_router['id']
-
-            # Create a port in the provider router
-            response, content = self.mido_conn.router_ports().create(
-                    self.provider_tenant_id,
-                    self.provider_router_id,
-                    PortType.LOGICAL_ROUTER,
-                    '10.0.0.0', 30,
-                    '10.0.0.1')
-            response, provider_port = self.mido_conn.get(response['location'])
-            LOG.debug('provider_port=%r', provider_port)
-
-            # Create a port in the tenant router
-            response, content = self.mido_conn.router_ports().create(
-                    tenant_id,
-                    tenant_router_id,
-                    PortType.LOGICAL_ROUTER,
-                    '10.0.0.0', 30,
-                    '10.0.0.2')
-            response, tenant_port = self.mido_conn.get(response['location'])
-            LOG.debug('tenant_port=%r', tenant_port)
-
-            # Link them
-            response, content = self.mido_conn.router_ports().link(
-                    self.provider_tenant_id,
-                    self.provider_router_id,
-                    provider_port['id'],
-                    tenant_port['id'])
-
-            # Set default route to uplink
-            tenant_uplink_port_id = tenant_port['id']
-            response, content = self.mido_conn.routes().create(
-                    tenant_id,
-                    tenant_router_id,
-                    'Normal',             # type
-                    '0.0.0.0', 0,         # source
-                    '0.0.0.0', 0,         # destination
-                    100,                  # weight
-                    tenant_uplink_port_id,# next hop port
-                    None)                 # next hop gateway
-
-            # NOTE:create chain and port_groups for default security groups
-            # These should be supposedly handled by security group handler,
-            # but handler doesn't get called for deafault security group
-            self.chain_manager.create_for_sg(tenant_id, None, 'default')
-            self.pg_manager.create(tenant_id, None, 'default')
-
-        # create a bridge for this network
-        response, content = self.mido_conn.bridges().create(tenant_id, net_name)
-        response, content = self.mido_conn.get(
-                                    response['location'])
-        bridge_id = content['id']
-        net_name = content['name']
-
-        network = {'net-id': bridge_id,
-                'net-name': net_name,
-                'net-op-status': OperationalStatus}
-        return network
-
-    def delete_network(self, tenant_id, net_id):
+    def get_networks(self, context, filters=None, fields=None):
         """
-        Deletes the network with the specified network identifier
-        belonging to the specified tenant.
+        List bridge of midonet
         """
-        LOG.debug("delete_network() called. tenant_id=%r, net_id=%r",
-                                                            tenant_id, net_id)
+        net = super(MidoNetPluginV2, self).get_networks(context, filters, None)
+        bridges = self.mido_mgmt.get_bridges({'tenant_id':context.tenant_id})
+        for n in net:
+            found = False
+            for b in bridges:
+                if n['id'] == b.get_id() and n['name'] == b.get_name():
+                    found = True
+            if not found:
+               raise Exception("Databases are out of Syc.")
+        return net
 
-        tenant_router_name = self.tenant_router_name
-        LOG.debug("Midonet Tenant Router Name: %r", tenant_router_name)
-        # do get routers to see if the tenant already has its tenant router.
-        response, content = self.mido_conn.routers().list(tenant_id)
-
-        tenant_router_id = None
-        for r in content:
-            if r['name'] == tenant_router_name:
-                LOG.debug("Tenant Router found")
-                tenant_router_id = r['id']
-
-        # Delete link between the tenant router and the bridge
-        response, tr_pps = self.mido_conn.routers().peer_ports(
-                tenant_id, tenant_router_id)
-
-        LOG.debug('Tenant router peer ports=%r', tr_pps)
-        found = False
-        for p in tr_pps:
-            if p['type'] == PortType.MATERIALIZED_ROUTER:
-                continue
-            if p['deviceId'] == net_id:
-                response, content = self.mido_conn.router_ports().unlink(
-                        tenant_id, tenant_router_id, p['peerId'])
-                tr_port = p['peerId']
-                br_port = p['id']
-                found = True
-                break
-        assert found
-
-        # Delete the bridge
-        try:
-            response, content = self.mido_conn.bridges().delete(
-                    tenant_id, net_id)
-        except Exception as e:
-            LOG.debug('Delete bridge got an exception: %r.', e)
-            raise exception.Error('Failed to delete the bridge=%s. ' % net_id +
-                                  'Link between %r and %r must be put back.' %
-                                  (tr_port, br_port))
-
-        # Delete the logical port in tenant router
-        response, content = self.mido_conn.router_ports().delete(
-                        tenant_id, tenant_router_id, tr_port)
-
-        # Delete routes destined to the tenant router port
-        response, routes = self.mido_conn.routes().list(tenant_id,
-                tenant_router_id)
-        for r in routes:
-            if r['nextHopPort'] == tr_port:
-                LOG.debug('delete route=%r', r['id'])
-                response, content = self.mido_conn.delete(r['uri'])
-
-    def get_network_details(self, tenant_id, net_id):
+    def delete_network(self, context, id):
         """
-        Get network information
+        Delete a bridge of midonet.
         """
-        LOG.debug("get_network_details() called: tenant_id=%r, net_id=%r",
-                  tenant_id, net_id)
+        session = context.session
+        with session.begin(subtransactions=True):
+            net = super(MidoNetPluginV2, self).get_network(context, id, None)
+            bridges = self.mido_mgmt.get_bridges({'tenant_id':context.tenant_id})
+            super(MidoNetPluginV2, self).delete_network(context, id)
+            found = False
+            for b in bridges:
+                if b.get_name() == net['name']:
+                   b.delete()
+                   found = True
+                   break
+            if not found:
+                raise Exception("Databases are out of Sync.")
 
-        res = {}
-        try:
-            response, bridge = self.mido_conn.bridges().get(tenant_id, net_id)
-            LOG.debug("Bridge: %r", bridge)
-            res = {'net-id': bridge['id'], 'net-name': bridge['name'],
-                   'net-op-status': 'UP'}
-        except LookupError as e:
-            LOG.debug("Bridge %r not found", net_id)
-            raise exception.NetworkNotFound(net_id=net_id)
-
-        return res
-
-    def update_network(self, tenant_id, net_id, **kwargs):
-        LOG.debug("update_network() called")
-
-    def get_all_ports(self, tenant_id, net_id, **kwargs):
+    def create_port(self, context, port):
         """
-        Retrieves all port identifiers belonging to the
-        specified Virtual Network.
+        Create port for Midonet bridge
         """
-        LOG.debug("get_all_ports() called: tenant_id=%r, net_id=%r, kwargs=%r",
-                                                      tenant_id, net_id, kwargs)
-        response, ports = self.mido_conn.bridge_ports().list(tenant_id, net_id)
-        return [{'port-id': str(p['id'])} for p in ports]
+        pass
 
-    def create_port(self, tenant_id, net_id, port_state=None, **kwargs):
-
+    def update_port(self, context, id, port):
         """
-        Creates a port on the specified Virtual Network.
+        Update port
         """
-        LOG.debug("create_port() called: tenant_id=%r, net_id=%r",
-                  tenant_id, net_id)
-        LOG.debug("     port_state=%r, kwargs:%r", port_state, kwargs)
+        pass
 
-        response, bridge = self.mido_conn.bridges().get(tenant_id, net_id)
-        bridge_uuid = bridge['id']
-        response, content = self.mido_conn.bridge_ports().create(
-                tenant_id, bridge_uuid, PortType.MATERIALIZED_BRIDGE)
-        response, bridge_port = self.mido_conn.get(response['location'])
-        LOG.debug('Bridge port=%r is created on bridge=%r',
-                                                bridge_port['id'], bridge_uuid)
-
-        port = {'port-id': bridge_port['id'],
-                'port-state': 'ACTIVE',
-                'port-op-status': 'UP',
-                'net-id': net_id}
-        return port
-
-    def delete_port(self, tenant_id, net_id, port_id):
+    def get_port(self, context, id, fields=None):
         """
-        Deletes a port on a specified Virtual Network,
-        if the port contains a remote interface attachment,
-        the remote interface is first un-plugged and then the port
-        is deleted.
+        Retrieve a port.
         """
-        LOG.debug("delete_port() called. tenant_id=%r, net_id=%r, port_id=%r",
-                                                    tenant_id, net_id, port_id)
-        response, content = self.mido_conn.bridge_ports().delete(
-                                                    tenant_id, net_id, port_id)
-        LOG.debug('delete_port: response=%r, content=%r', response, content)
+        quantum_db = super(MidoNetPluginV2, self).get_port(context, id, fields)
+        return quantum_db
 
-    def update_port(self, tenant_id, net_id, port_id, **kwargs):
+    def get_ports(self, context, filters=None, fields=None):
         """
-        Updates the attributes of a port on the specified Virtual Network.
+        List port
         """
-        LOG.debug("update_port() called\n")
+        quantum_db = super(MidoNetPluginV2, self).get_ports(context, filters)
+        return quantum_db
 
-    def get_port_details(self, tenant_id, net_id, port_id):
+    def delete_port(self, context, id):
         """
-        This method allows the user to retrieve a remote interface
-        that is attached to this particular port.
+        Delete a port.
         """
-        LOG.debug("get_port_details() called: tenant_id=%r, net_id=%r",
-                  tenant_id, net_id)
-        LOG.debug("    port_id=%r", port_id)
-
-        response, bridge_port = self.mido_conn.bridge_ports().get(
-                                                    tenant_id, net_id, port_id)
-        LOG.debug("Got Bridge port=%r", bridge_port)
-
-        if bridge_port['type'] == PortType.MATERIALIZED_BRIDGE:
-            attachment = bridge_port['vifId']
-        else:
-            attachment = None
-
-        port = {'port-id': bridge_port['id'],
-                'port-state': 'ACTIVE',
-                'port-op-status': 'UP',
-                'net-id': net_id,
-                'attachment': attachment}
-        return port
-
-    def plug_interface(self, tenant_id, net_id, port_id, vif_id):
-        """
-        Attaches a remote interface to the specified port on the
-        specified Virtual Network.
-        """
-        LOG.debug("tenant_id=%r, net_id=%r, port_id=%r, vif_id=%r",
-                tenant_id, net_id, port_id, vif_id)
-        response, bridge_port = self.mido_conn.bridge_ports().get(tenant_id,
-                net_id, port_id)
-        bridge_port['vifId'] = vif_id
-        response, bridge_port = self.mido_conn.bridge_ports().update(tenant_id,
-                net_id, port_id, bridge_port)
-
-        LOG.debug("bridge_port=%r is updated.", bridge_port)
-
-    def unplug_interface(self, tenant_id, net_id, port_id):
-        """
-        Detaches a remote interface from the specified port on the
-        specified Virtual Network.
-        """
-        LOG.debug("tenant_id=%r, net_id=%r, port_id=%r",tenant_id, net_id,
-                port_id)
-        response, bridge_port = self.mido_conn.bridge_ports().get(
-                                                     tenant_id, net_id, port_id)
-        LOG.debug('bridge_port: %r', bridge_port)
-        response, bridge_port = self.mido_conn.bridge_ports().get(tenant_id,
-                net_id, port_id)
-        bridge_port['vifId'] = None
-        response, bridge_port = self.mido_conn.bridge_ports().update(tenant_id,
-                net_id, port_id, bridge_port)
-
-
-    supported_extension_aliases = ["FOXNSOX"]
-
-    def method_to_support_foxnsox_extension(self):
-        LOG.debug("method_to_support_foxnsox_extension() called\n")
-
-
+        pass
