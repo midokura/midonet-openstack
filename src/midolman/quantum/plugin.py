@@ -68,25 +68,83 @@ class MidoNetPluginV2(db_base_plugin_v2.QuantumDbPluginV2):
         """
         Create DHCP entry for bridge of MidoNet
         """
-        pass
+        network_address, prefix = subnet['subnet']['cidr'].split('/')
+        session = context.session
+        with session.begin(subtransactions=True):
+            sub = super(MidoNetPluginV2, self).create_subnet(context, subnet)
+            bridges = self.mido_mgmt.get_bridges(
+                    {'tenant_id':subnet['subnet']['tenant_id']})
+            gateway_ip = sub['gateway_ip']
+            for b in bridges:
+                found = False
+                if b.get_id() == sub['network_id']:
+                      b.add_dhcp_subnet().default_gateway(
+                          gateway_ip).subnet_prefix(
+                          network_address).subnet_length(prefix).create()
+                      found = True
+                      break
+            if not found:
+                raise Exception("Databases are out of Sync.")
+        return sub
 
     def get_subnet(self, context, id, fields=None):
         """
         Get midonet bridge information.
         """
-        pass
+        subnet = super(MidoNetPluginV2, self).get_subnet(context, id)
+        bridges = self.mido_mgmt.get_bridges({'tenant_id':context.tenant_id})
+        network_address, prefix = subnet['cidr'].split('/')
+        found = False
+        for b in bridges:
+            if b.get_id() == subnet['network_id']:
+                dhcp = b.get_dhcp_subnets()
+                b_network_address = dhcp[0].get_subnet_prefix()
+                b_prefix = dhcp[0].get_subnet_length()
+                if network_address == b_network_address and int(prefix) == b_prefix:
+                    found = True
+        if not found:
+            raise Exception("Databases are out of Sync.")
+        return subnet
 
     def get_subnets(self, context, filters=None, fields=None):
         """
         List midonet bridge information.
         """
-        pass
+        subnet = super(MidoNetPluginV2, self).get_subnets(context, filters, fields)
+        bridges = self.mido_mgmt.get_bridges({'tenant_id':context.tenant_id})
+        for sub in subnet:
+            network_address, prefix = sub['cidr'].split('/')
+            found = False
+            for b in bridges:
+                if b.get_id() == sub['network_id']:
+                    dhcp = b.get_dhcp_subnets()
+                    b_network_address = dhcp[0].get_subnet_prefix()
+                    b_prefix = dhcp[0].get_subnet_length()
+                    if network_address == b_network_address and int(prefix) == b_prefix:
+                        found = True
+            if not found:
+                raise Exception("Databases are out of Sync.")
+        return subnet
 
     def delete_subnet(self, context, id):
         """
         Delete midonet bridge
         """
-        pass
+        session = context.session
+        with session.begin(subtransactions=True):
+            sub = super(MidoNetPluginV2, self).get_subnet(context, id, fields=None)
+            bridges = self.mido_mgmt.get_bridges({'tenant_id':context.tenant_id})
+            for b in bridges:
+                if b.get_id() == sub['network_id']:
+                    dhcp = b.get_dhcp_subnets()
+                    network_address = dhcp[0].get_subnet_prefix()
+                    prefix = dhcp[0].get_subnet_length()
+                    gateway_ip = sub['gateway_ip']
+                    dhcp[0].default_gateway(
+                        gateway_ip).subnet_prefix(
+                        network_address).subnet_length(prefix).delete()
+                    break
+            sub = super(MidoNetPluginV2, self).delete_subnet(context, id)
 
     def create_network(self, context, network):
         """
