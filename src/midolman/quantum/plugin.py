@@ -231,30 +231,80 @@ class MidoNetPluginV2(db_base_plugin_v2.QuantumDbPluginV2):
         """
         Create port for Midonet bridge
         """
-        pass
+        session = context.session
+        with session.begin(subtransactions=True):
+            bridges = self.mido_mgmt.get_bridges({'tenant_id':context.tenant_id})
+            found = False
+            for b in bridges:
+                if b.get_id() == port['port']['network_id']:
+                    mido_port = b.add_materialized_port().create()
+                    found = True
+                    break
+            if not found:
+                raise Exception("Database are out of Sync")
+            port['port']['id'] = mido_port.get_id()
+            p = super(MidoNetPluginV2, self).create_port(context, port)
+        return p
 
     def update_port(self, context, id, port):
         """
         Update port
         """
-        pass
+        return super(MidoNetPluginV2, self).update_port(context, id, port)
 
     def get_port(self, context, id, fields=None):
         """
         Retrieve a port.
         """
-        quantum_db = super(MidoNetPluginV2, self).get_port(context, id, fields)
-        return quantum_db
+        port = super(MidoNetPluginV2, self).get_port(context, id, fields)
+        bridges = self.mido_mgmt.get_bridges({'tenant_id':context.tenant_id})
+        found = False
+        for b in bridges:
+            if port['network_id'] == b.get_id():
+                b_ports = b.get_ports()
+                for p in b_ports:
+                    if port['id'] == p.get_id():
+                        found = True
+        if not found:
+            raise Exception("Databases are out of Sync.")
+        return port
 
     def get_ports(self, context, filters=None, fields=None):
         """
         List port
         """
-        quantum_db = super(MidoNetPluginV2, self).get_ports(context, filters)
-        return quantum_db
+        ports = super(MidoNetPluginV2, self).get_ports(context, filters)
+        bridges = self.mido_mgmt.get_bridges({'tenant_id':context.tenant_id})
+        for port in ports:
+            found = False
+            for b in bridges:
+                if port['network_id'] == b.get_id():
+                    b_ports = b.get_ports()
+                    for p in b_ports:
+                        if port['id'] == p.get_id():
+                            found = True
+            if not found:
+               raise Exception("Databases are out of Sync.")
+        return ports
 
     def delete_port(self, context, id):
         """
         Delete a port.
         """
-        pass
+        session = context.session
+        with session.begin(subtransactions=True):
+            port = super(MidoNetPluginV2, self).get_port(context, id, None)
+            bridges = self.mido_mgmt.get_bridges({'tenant_id':context.tenant_id})
+            found = False
+            for b in bridges:
+                if b.get_id() == port['network_id']:
+                    bridge_port = b.get_ports()
+                    for bp in bridge_port:
+                        if bp.get_id() == id:
+                            bp.delete()
+                            found = True
+                            break
+            if not found:
+                raise Exception("Databases are out of Sync.")
+            port = super(MidoNetPluginV2, self).delete_port(context, id)
+        return port
