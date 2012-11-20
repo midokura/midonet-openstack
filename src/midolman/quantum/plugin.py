@@ -24,7 +24,7 @@ from quantum.db import api as db
 from quantum.db import models_v2
 from quantum.api.v2 import attributes
 from quantum.common.utils import find_config_file
-from quantum.common import exceptions as exception
+from quantum.common import exceptions as q_exc
 
 LOG = logging.getLogger('MidoNetPlugin')
 LOG.setLevel(logging.DEBUG)
@@ -68,6 +68,8 @@ class MidoNetPluginV2(db_base_plugin_v2.QuantumDbPluginV2):
         """
         Create DHCP entry for bridge of MidoNet
         """
+        if subnet['subnet']['ip_version'] == 6:
+            raise q_exc.NotImplementedError(message="MidoNet doesn't support IPv6")
         network_address, prefix = subnet['subnet']['cidr'].split('/')
         session = context.session
         with session.begin(subtransactions=True):
