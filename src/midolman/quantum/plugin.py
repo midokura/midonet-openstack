@@ -151,9 +151,13 @@ class MidonetPluginV2(db_base_plugin_v2.QuantumDbPluginV2):
 
     def create_network(self, context, network):
         """
-        Create bridge of midonet
+        Create a MidoNet bridge and a DB entry.
         """
         LOG.debug('context=%r, network=%r', context.to_dict(), network)
+
+        if network['network']['admin_state_up'] is False:
+            LOG.warning('Ignoreing admin_state_up=False for network=%r',
+                        network)
 
         tenant_id = self._get_tenant_id_for_create(context, network['network'])
         session = context.session
