@@ -229,21 +229,14 @@ class MidonetPluginV2(db_base_plugin_v2.QuantumDbPluginV2):
 
     def delete_network(self, context, id):
         """
-        Delete a bridge of midonet.
+        Delete a network and its corresponding MidoNet bridge.
         """
+        LOG.debug('context=%r, id=%r', context.to_dict(), id)
+
         session = context.session
         with session.begin(subtransactions=True):
-            net = super(MidonetPluginV2, self).get_network(context, id, None)
-            bridges = self.mido_mgmt.get_bridges({'tenant_id':context.tenant_id})
+            self.mido_mgmt.get_bridge(context.tenant_id, id).delete()
             super(MidonetPluginV2, self).delete_network(context, id)
-            found = False
-            for b in bridges:
-                if b.get_name() == net['name']:
-                   b.delete()
-                   found = True
-                   break
-            if not found:
-                raise Exception("Databases are out of Sync.")
 
     def create_port(self, context, port):
         """
