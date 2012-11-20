@@ -175,7 +175,8 @@ class MidonetPluginV2(db_base_plugin_v2.QuantumDbPluginV2):
         """
         Update network and its corresponding MidoNet bridge.
         """
-        LOG.debug('context=%r, network=%r', context.to_dict(), network)
+        LOG.debug('context=%r, id=%r, network=%r', context.to_dict(), id,
+                  network)
 
         # Reject admin_state_up=False
         if network['network'].get('admin_state_up') and \
