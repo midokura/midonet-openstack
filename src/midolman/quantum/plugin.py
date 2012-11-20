@@ -198,17 +198,17 @@ class MidonetPluginV2(db_base_plugin_v2.QuantumDbPluginV2):
 
     def get_network(self, context, id, fields=None):
         """
-        Get a bridge of midonet
+        Get and return requested quantum network from DB and verify
+        that it exists in MidoNet.
         """
-        found = False
-        net = super(MidonetPluginV2, self).get_network(context, id, None)
-        bridges = self.mido_mgmt.get_bridges({'tenant_id':context.tenant_id})
-        for b in bridges:
-            if b.get_id() == net['id'] and b.get_name() == net['name']:
-               found = True
-               break
-        if not found:
-           raise Exception("Databases are out of Sync.")
+        LOG.debug('context=%r, id=%r, fields=%r', context.to_dict(), id,
+                  fields)
+
+        net = super(MidonetPluginV2, self).get_network(context, id, fields)
+        try:
+            bridges = self.mido_mgmt.get_bridge(context.tenant_id, id)
+        except LookupError as e:
+            raise q_exc.NetworkNotFound(net_id=id)
         return net
 
     def get_networks(self, context, filters=None, fields=None):
