@@ -173,22 +173,26 @@ class MidonetPluginV2(db_base_plugin_v2.QuantumDbPluginV2):
 
     def update_network(self, context, id, network):
         """
-        Update bridge name
+        Update network and its corresponding MidoNet bridge.
         """
+        LOG.debug('context=%r, network=%r', context.to_dict(), network)
+
+        # Reject admin_state_up=False
+        if network['network'].get('admin_state_up') and \
+           network['network']['admin_state_up'] is False:
+            raise q_exc.NotImplementedError('admin_state_up=False '
+                                                'networks are not '
+                                                'supported.')
+
         session = context.session
         with session.begin(subtransactions=True):
             net = super(MidonetPluginV2, self).update_network(
                                               context, id, network)
-            bridges = self.mido_mgmt.get_bridges(
-                    {'tenant_id':context.tenant_id})
-            found = False
-            for b in bridges:
-                if net['id'] == b.get_id():
-                    b.name(net['name']).update()
-                    found = True
-                    break
-            if not found:
-                raise Exception("Databases are out of Sync.")
+            try:
+                bridge = self.mido_mgmt.get_bridge(context.tenant_id, id)
+            except LookupError as e:
+                raise q_exc.NetworkNotFound(net_id=id)
+            bridge.name(net['name']).update()
         return net
 
     def get_network(self, context, id, fields=None):
