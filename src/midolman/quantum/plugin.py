@@ -13,6 +13,7 @@
 #    License for the specific language governing permissions and limitations
 #    under the License.
 # @author: Takaaki Suzuki Midokura Japan KK
+# @author: Tomoe Sugihara Midokura Japan KK
 
 import logging
 import ConfigParser
