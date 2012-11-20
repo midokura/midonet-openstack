@@ -26,10 +26,10 @@ from quantum.api.v2 import attributes
 from quantum.common.utils import find_config_file
 from quantum.common import exceptions as q_exc
 
-LOG = logging.getLogger('MidoNetPlugin')
+LOG = logging.getLogger('MidonetPluginV2')
 LOG.setLevel(logging.DEBUG)
 
-class MidoNetPluginV2(db_base_plugin_v2.QuantumDbPluginV2):
+class MidonetPluginV2(db_base_plugin_v2.QuantumDbPluginV2):
 
     def __init__(self):
         # Read plugin config file
@@ -73,7 +73,7 @@ class MidoNetPluginV2(db_base_plugin_v2.QuantumDbPluginV2):
         network_address, prefix = subnet['subnet']['cidr'].split('/')
         session = context.session
         with session.begin(subtransactions=True):
-            sub = super(MidoNetPluginV2, self).create_subnet(context, subnet)
+            sub = super(MidonetPluginV2, self).create_subnet(context, subnet)
             bridges = self.mido_mgmt.get_bridges(
                     {'tenant_id':subnet['subnet']['tenant_id']})
             gateway_ip = sub['gateway_ip']
@@ -93,7 +93,7 @@ class MidoNetPluginV2(db_base_plugin_v2.QuantumDbPluginV2):
         """
         Get midonet bridge information.
         """
-        subnet = super(MidoNetPluginV2, self).get_subnet(context, id)
+        subnet = super(MidonetPluginV2, self).get_subnet(context, id)
         bridges = self.mido_mgmt.get_bridges({'tenant_id':context.tenant_id})
         network_address, prefix = subnet['cidr'].split('/')
         found = False
@@ -112,7 +112,7 @@ class MidoNetPluginV2(db_base_plugin_v2.QuantumDbPluginV2):
         """
         List midonet bridge information.
         """
-        subnet = super(MidoNetPluginV2, self).get_subnets(context, filters, fields)
+        subnet = super(MidonetPluginV2, self).get_subnets(context, filters, fields)
         bridges = self.mido_mgmt.get_bridges({'tenant_id':context.tenant_id})
         for sub in subnet:
             network_address, prefix = sub['cidr'].split('/')
@@ -134,7 +134,7 @@ class MidoNetPluginV2(db_base_plugin_v2.QuantumDbPluginV2):
         """
         session = context.session
         with session.begin(subtransactions=True):
-            sub = super(MidoNetPluginV2, self).get_subnet(context, id, fields=None)
+            sub = super(MidonetPluginV2, self).get_subnet(context, id, fields=None)
             bridges = self.mido_mgmt.get_bridges({'tenant_id':context.tenant_id})
             for b in bridges:
                 if b.get_id() == sub['network_id']:
@@ -146,7 +146,7 @@ class MidoNetPluginV2(db_base_plugin_v2.QuantumDbPluginV2):
                         gateway_ip).subnet_prefix(
                         network_address).subnet_length(prefix).delete()
                     break
-            sub = super(MidoNetPluginV2, self).delete_subnet(context, id)
+            sub = super(MidonetPluginV2, self).delete_subnet(context, id)
 
     def create_network(self, context, network):
         """
@@ -163,7 +163,7 @@ class MidoNetPluginV2(db_base_plugin_v2.QuantumDbPluginV2):
 
             # Set MidoNet bridge ID to the quantum DB entry
             network['network']['id'] = bridge.get_id()
-            net = super(MidoNetPluginV2, self).create_network(context, network)
+            net = super(MidonetPluginV2, self).create_network(context, network)
         return net
 
     def update_network(self, context, id, network):
@@ -172,7 +172,7 @@ class MidoNetPluginV2(db_base_plugin_v2.QuantumDbPluginV2):
         """
         session = context.session
         with session.begin(subtransactions=True):
-            net = super(MidoNetPluginV2, self).update_network(
+            net = super(MidonetPluginV2, self).update_network(
                                               context, id, network)
             bridges = self.mido_mgmt.get_bridges(
                     {'tenant_id':context.tenant_id})
@@ -191,7 +191,7 @@ class MidoNetPluginV2(db_base_plugin_v2.QuantumDbPluginV2):
         Get a bridge of midonet
         """
         found = False
-        net = super(MidoNetPluginV2, self).get_network(context, id, None)
+        net = super(MidonetPluginV2, self).get_network(context, id, None)
         bridges = self.mido_mgmt.get_bridges({'tenant_id':context.tenant_id})
         for b in bridges:
             if b.get_id() == net['id'] and b.get_name() == net['name']:
@@ -205,7 +205,7 @@ class MidoNetPluginV2(db_base_plugin_v2.QuantumDbPluginV2):
         """
         List bridge of midonet
         """
-        net = super(MidoNetPluginV2, self).get_networks(context, filters, None)
+        net = super(MidonetPluginV2, self).get_networks(context, filters, None)
         bridges = self.mido_mgmt.get_bridges({'tenant_id':context.tenant_id})
         for n in net:
             found = False
@@ -222,9 +222,9 @@ class MidoNetPluginV2(db_base_plugin_v2.QuantumDbPluginV2):
         """
         session = context.session
         with session.begin(subtransactions=True):
-            net = super(MidoNetPluginV2, self).get_network(context, id, None)
+            net = super(MidonetPluginV2, self).get_network(context, id, None)
             bridges = self.mido_mgmt.get_bridges({'tenant_id':context.tenant_id})
-            super(MidoNetPluginV2, self).delete_network(context, id)
+            super(MidonetPluginV2, self).delete_network(context, id)
             found = False
             for b in bridges:
                 if b.get_name() == net['name']:
@@ -250,20 +250,20 @@ class MidoNetPluginV2(db_base_plugin_v2.QuantumDbPluginV2):
             if not found:
                 raise Exception("Database are out of Sync")
             port['port']['id'] = mido_port.get_id()
-            p = super(MidoNetPluginV2, self).create_port(context, port)
+            p = super(MidonetPluginV2, self).create_port(context, port)
         return p
 
     def update_port(self, context, id, port):
         """
         Update port
         """
-        return super(MidoNetPluginV2, self).update_port(context, id, port)
+        return super(MidonetPluginV2, self).update_port(context, id, port)
 
     def get_port(self, context, id, fields=None):
         """
         Retrieve a port.
         """
-        port = super(MidoNetPluginV2, self).get_port(context, id, fields)
+        port = super(MidonetPluginV2, self).get_port(context, id, fields)
         bridges = self.mido_mgmt.get_bridges({'tenant_id':context.tenant_id})
         found = False
         for b in bridges:
@@ -280,7 +280,7 @@ class MidoNetPluginV2(db_base_plugin_v2.QuantumDbPluginV2):
         """
         List port
         """
-        ports = super(MidoNetPluginV2, self).get_ports(context, filters)
+        ports = super(MidonetPluginV2, self).get_ports(context, filters)
         bridges = self.mido_mgmt.get_bridges({'tenant_id':context.tenant_id})
         for port in ports:
             found = False
@@ -300,7 +300,7 @@ class MidoNetPluginV2(db_base_plugin_v2.QuantumDbPluginV2):
         """
         session = context.session
         with session.begin(subtransactions=True):
-            port = super(MidoNetPluginV2, self).get_port(context, id, None)
+            port = super(MidonetPluginV2, self).get_port(context, id, None)
             bridges = self.mido_mgmt.get_bridges({'tenant_id':context.tenant_id})
             found = False
             for b in bridges:
@@ -313,5 +313,5 @@ class MidoNetPluginV2(db_base_plugin_v2.QuantumDbPluginV2):
                             break
             if not found:
                 raise Exception("Databases are out of Sync.")
-            port = super(MidoNetPluginV2, self).delete_port(context, id)
+            port = super(MidonetPluginV2, self).delete_port(context, id)
         return port
