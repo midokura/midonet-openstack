@@ -206,23 +206,24 @@ class MidonetPluginV2(db_base_plugin_v2.QuantumDbPluginV2):
 
         net = super(MidonetPluginV2, self).get_network(context, id, fields)
         try:
-            bridges = self.mido_mgmt.get_bridge(context.tenant_id, id)
+            bridge = self.mido_mgmt.get_bridge(context.tenant_id, id)
         except LookupError as e:
             raise q_exc.NetworkNotFound(net_id=id)
         return net
 
     def get_networks(self, context, filters=None, fields=None):
         """
-        List bridge of midonet
+        List quantum networks and verify that all exist in MidoNet.
         """
-        net = super(MidonetPluginV2, self).get_networks(context, filters, None)
+        LOG.debug('context=%r, filters=%r, fields=%r', context.to_dict(),
+                  filters, fields)
+
+        net = super(MidonetPluginV2, self).get_networks(context, filters, fields)
         bridges = self.mido_mgmt.get_bridges({'tenant_id':context.tenant_id})
         for n in net:
-            found = False
-            for b in bridges:
-                if n['id'] == b.get_id() and n['name'] == b.get_name():
-                    found = True
-            if not found:
+            try:
+                bridge = self.mido_mgmt.get_bridge(context.tenant_id, n['id'])
+            except LookupError as e:
                raise Exception("Databases are out of Syc.")
         return net
 
