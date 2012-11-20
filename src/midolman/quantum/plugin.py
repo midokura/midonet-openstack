@@ -1,4 +1,4 @@
-# Copyright (C) 2012 Midokura Japan K.K. 
+# Copyright (C) 2012 Midokura Japan K.K.
 # All Rights Reserved.
 #
 #    Licensed under the Apache License, Version 2.0 (the "License"); you may
@@ -152,11 +152,16 @@ class MidoNetPluginV2(db_base_plugin_v2.QuantumDbPluginV2):
         """
         Create bridge of midonet
         """
+        LOG.debug('context=%r, network=%r', context.to_dict(), network)
+
+        tenant_id = self._get_tenant_id_for_create(context, network)
         session = context.session
         with session.begin(subtransactions=True):
-            bridge = self.mido_mgmt.add_bridge().name(
-                 network['network']['name']).tenant_id(
-                             context.tenant_id).create()
+            bridge = self.mido_mgmt.add_bridge()\
+                         .name(network['network']['name'])\
+                         .tenant_id(tenant_id).create()
+
+            # Set MidoNet bridge ID to the quantum DB entry
             network['network']['id'] = bridge.get_id()
             net = super(MidoNetPluginV2, self).create_network(context, network)
         return net
