@@ -154,7 +154,7 @@ class MidonetPluginV2(db_base_plugin_v2.QuantumDbPluginV2):
         """
         LOG.debug('context=%r, network=%r', context.to_dict(), network)
 
-        tenant_id = self._get_tenant_id_for_create(context, network)
+        tenant_id = self._get_tenant_id_for_create(context, network['network'])
         session = context.session
         with session.begin(subtransactions=True):
             bridge = self.mido_mgmt.add_bridge()\
