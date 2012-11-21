@@ -260,63 +260,87 @@ class MidonetPluginV2(db_base_plugin_v2.QuantumDbPluginV2):
 
     def create_port(self, context, port):
         """
-        Create port for Midonet bridge
+        Create a port in DB and its corresponding port on the MidoNet bridge.
         """
+        LOG.debug('context=%r, port=%r', context.to_dict(), port)
+
         session = context.session
         with session.begin(subtransactions=True):
-            bridges = self.mido_mgmt.get_bridges({'tenant_id':context.tenant_id})
-            found = False
-            for b in bridges:
-                if b.get_id() == port['port']['network_id']:
-                    mido_port = b.add_materialized_port().create()
-                    found = True
-                    break
-            if not found:
-                raise Exception("Database are out of Sync")
-            port['port']['id'] = mido_port.get_id()
-            p = super(MidonetPluginV2, self).create_port(context, port)
-        return p
+            # get the bridge and create a port on it.
+            try:
+                bridge = self.mido_mgmt.get_bridge(port['port']['tenant_id'],
+                                                   port['port']['network_id'])
+            except LookupError as e:
+                raise q_exc.NetworkNotFound(net_id=port['port']['network_id'])
+
+            bridge_port = bridge.add_materialized_port().create()
+
+            # set midonet port id to quantum port id and create a DB record.
+            port['port']['id'] = bridge_port.get_id()
+            qport = super(MidonetPluginV2, self).create_port(context, port)
+
+            # get ip and mac from DB record.
+            fixed_ip = qport['fixed_ips'][0]['ip_address']
+            mac =qport['mac_address']
+
+            # create dhcp host entry under the bridge.
+            dhcp_subnet = bridge.get_dhcp_subnets()[0]
+            dhcp_subnet.add_dhcp_host().ip_addr(fixed_ip)\
+                                       .mac_addr(mac)\
+                                       .create()
+        return qport
 
     def update_port(self, context, id, port):
         """
-        Update port
+        Update port.
+        TODO: Nothing to do with MidoNet?
         """
+        LOG.debug('context=%r, id=%r, port=%r', context.to_dict(), id, port)
         return super(MidonetPluginV2, self).update_port(context, id, port)
 
     def get_port(self, context, id, fields=None):
         """
         Retrieve a port.
         """
-        port = super(MidonetPluginV2, self).get_port(context, id, fields)
-        bridges = self.mido_mgmt.get_bridges({'tenant_id':context.tenant_id})
-        found = False
-        for b in bridges:
-            if port['network_id'] == b.get_id():
-                b_ports = b.get_ports()
-                for p in b_ports:
-                    if port['id'] == p.get_id():
-                        found = True
-        if not found:
+        LOG.debug('context=%r, id=%r, fields=%r', context.to_dict(), id, fields)
+
+        # get the quantum port from DB.
+        qport = super(MidonetPluginV2, self).get_port(context, id, fields)
+
+        # verify that corresponding port exists in MidoNet.
+        try:
+            LOG.debug('qport=%r', qport)
+            bridge = self.mido_mgmt.get_bridge(qport['tenant_id'],
+                                               qport['network_id'])
+            #bridge_port = bridge.get_port(id)
+        except LookupError as e:
             raise Exception("Databases are out of Sync.")
-        return port
+
+        return qport
 
     def get_ports(self, context, filters=None, fields=None):
         """
-        List port
+        List quantum ports and verify that they exist in MidoNet.
         """
-        ports = super(MidonetPluginV2, self).get_ports(context, filters)
-        bridges = self.mido_mgmt.get_bridges({'tenant_id':context.tenant_id})
-        for port in ports:
-            found = False
-            for b in bridges:
-                if port['network_id'] == b.get_id():
-                    b_ports = b.get_ports()
-                    for p in b_ports:
-                        if port['id'] == p.get_id():
-                            found = True
-            if not found:
-               raise Exception("Databases are out of Sync.")
-        return ports
+        LOG.debug('context=%r, filters=%r, fields=%r', context.to_dict(),
+                  filters, fields)
+        qports = super(MidonetPluginV2, self).get_ports(context, filters,
+                fields)
+        LOG.debug('qport=%r', qports)
+
+        #TODO: check if this methods is supposed to return all
+        #      the ports across different bridges? if that's the case,
+        #      we need to chenge the validation below.
+        if len(qports) > 0:
+            try:
+                bridge = self.mido_mgmt.get_bridge(context.tenant_id,
+                                                   qports[0]['network_id'])
+                for port in qports:
+                    bridge.get_port(port['id'])
+            except LookupError as e:
+                raise Exception("Databases are out of Sync.")
+
+        return qports
 
     def delete_port(self, context, id):
         """
@@ -324,18 +348,10 @@ class MidonetPluginV2(db_base_plugin_v2.QuantumDbPluginV2):
         """
         session = context.session
         with session.begin(subtransactions=True):
-            port = super(MidonetPluginV2, self).get_port(context, id, None)
-            bridges = self.mido_mgmt.get_bridges({'tenant_id':context.tenant_id})
-            found = False
-            for b in bridges:
-                if b.get_id() == port['network_id']:
-                    bridge_port = b.get_ports()
-                    for bp in bridge_port:
-                        if bp.get_id() == id:
-                            bp.delete()
-                            found = True
-                            break
-            if not found:
-                raise Exception("Databases are out of Sync.")
-            port = super(MidonetPluginV2, self).delete_port(context, id)
-        return port
+            qport = super(MidonetPluginV2, self).get_port(context, id, None)
+            bridge = self.mido_mgmt.get_bridge(context.tenant_id,
+                                               qport['network_id'])
+            bridge.get_port(id).delete()
+
+            qport = super(MidonetPluginV2, self).delete_port(context, id)
+        return qport
