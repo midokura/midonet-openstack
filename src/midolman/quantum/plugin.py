@@ -43,13 +43,15 @@ class MidonetPluginV2(db_base_plugin_v2.QuantumDbPluginV2):
         config.read(config_file)
 
         # add keystone auth
-        admin_pass = config.get('keystone', 'admin_password')
-        keystone_uri = config.get('keystone', 'keystone_uri')
+        admin_user = config.get('keystone', 'quantum_admin_username')
+        admin_pass = config.get('keystone', 'quantum_admin_password')
+        admin_tenant_name = config.get('keystone', 'quantum_admin_tenant_name')
+        keystone_uri = config.get('keystone', 'quantum_admin_auth_url')
         auth = KeystoneAuth(uri=keystone_uri,
-                            username='admin', password=admin_pass,
-                            tenant_name='admin')
+                            username=admin_user, password=admin_pass,
+                            tenant_name=admin_tenant_name)
         web_resource = WebResource(auth, logger=LOG)
-        # Create MidoNetClient
+        # Create MidoNet Management API wrapper object.
         self.mido_mgmt = MidonetMgmt(web_resource=web_resource, logger=LOG)
 
         # Create sql connection
