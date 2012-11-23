@@ -88,7 +88,12 @@ class MidonetVifDriver(vif.VIFDriver):
 
         # create if-vport mapping.
         host_uuid = self._get_host_uuid()
-        host = self.mido_mgmt.get_host(host_uuid)
+        try:
+            host = self.mido_mgmt.get_host(host_uuid)
+        except LookupError as e:
+            LOG.error('Failed to create a if-vport mapping. '
+                      'Host %s is not found or not active.', host_uuid)
+            raise e
         host.add_host_interface_port().port_id(vport_id)\
             .interface_name(dev_name).create()
 
@@ -110,11 +115,15 @@ class MidonetVifDriver(vif.VIFDriver):
         from Nova.
         """
         LOG.debug('instance=%r, vif=%r, kwargs=%r', instance, vif, kwargs)
+        try:
+            vport_id = vif[1]['vif_uuid']
+            dev_name = self._get_dev_name(instance['uuid'], vport_id)
 
-        vport_id = vif[1]['vif_uuid']
-        dev_name = self._get_dev_name(instance['uuid'], vport_id)
-
-        # tear down the tap if it exists.
-        if self._device_exists(dev_name):
-            self._delete_tap(dev_name)
+            # tear down the tap if it exists.
+            if self._device_exists(dev_name):
+                self._delete_tap(dev_name)
+        except:
+            # Swallowing exception to let the instance go.
+            LOG.exception(_("Failed while unplugging vif=%s", dev_name),
+                          instance=instance)
 
