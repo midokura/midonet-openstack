@@ -152,9 +152,10 @@ class MidonetPluginV2(db_base_plugin_v2.QuantumDbPluginV2,
             b_prefix = dhcps[0].get_subnet_length()
 
             # Validate against quantum database.
-            network_address, prefix = sn['cidr'].split('/')
-            if network_address != b_network_address or int(prefix) != b_prefix:
-                raise Exception("Databases are out of Sync.")
+            if sn.get('cidr'):
+                network_address, prefix = sn['cidr'].split('/')
+                if network_address != b_network_address or int(prefix) != b_prefix:
+                    raise Exception("Databases are out of Sync.")
         return subnets
 
     def delete_subnet(self, context, id):
