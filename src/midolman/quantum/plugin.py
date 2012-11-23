@@ -349,10 +349,15 @@ class MidonetPluginV2(db_base_plugin_v2.QuantumDbPluginV2,
 
         return qports
 
-    def delete_port(self, context, id):
+    def delete_port(self, context, id, l3_port_check=True):
         """
-        Delete a port.
+        Delete a quantum port and corresponding MidoNet bridge port.
         """
+        # if needed, check to see if this is a port owned by
+        # and l3-router.  If so, we should prevent deletion.
+        if l3_port_check:
+            self.prevent_l3_port_deletion(context, id)
+
         session = context.session
         with session.begin(subtransactions=True):
             qport = super(MidonetPluginV2, self).get_port(context, id, None)
