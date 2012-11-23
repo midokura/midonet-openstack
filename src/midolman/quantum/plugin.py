@@ -288,13 +288,14 @@ class MidonetPluginV2(db_base_plugin_v2.QuantumDbPluginV2,
 
             # get ip and mac from DB record.
             fixed_ip = qport['fixed_ips'][0]['ip_address']
-            mac =qport['mac_address']
+            mac = qport['mac_address']
 
             # create dhcp host entry under the bridge.
-            dhcp_subnet = bridge.get_dhcp_subnets()[0]
-            dhcp_subnet.add_dhcp_host().ip_addr(fixed_ip)\
-                                       .mac_addr(mac)\
-                                       .create()
+            dhcp_subnets = bridge.get_dhcp_subnets()
+            if len(dhcp_subnets) > 0:
+                dhcp_subnets[0].add_dhcp_host().ip_addr(fixed_ip)\
+                                              .mac_addr(mac)\
+                                              .create()
         return qport
 
     def update_port(self, context, id, port):
@@ -322,7 +323,6 @@ class MidonetPluginV2(db_base_plugin_v2.QuantumDbPluginV2,
             #bridge_port = bridge.get_port(id)
         except LookupError as e:
             raise Exception("Databases are out of Sync.")
-
         return qport
 
     def get_ports(self, context, filters=None, fields=None):
@@ -346,7 +346,6 @@ class MidonetPluginV2(db_base_plugin_v2.QuantumDbPluginV2,
                     bridge.get_port(port['id'])
             except LookupError as e:
                 raise Exception("Databases are out of Sync.")
-
         return qports
 
     def delete_port(self, context, id, l3_port_check=True):
@@ -363,8 +362,19 @@ class MidonetPluginV2(db_base_plugin_v2.QuantumDbPluginV2,
             qport = super(MidonetPluginV2, self).get_port(context, id, None)
             bridge = self.mido_mgmt.get_bridge(context.tenant_id,
                                                qport['network_id'])
-            bridge.get_port(id).delete()
+            # get ip and mac from DB record.
+            fixed_ip = qport['fixed_ips'][0]['ip_address']
+            mac = qport['mac_address']
 
+            # create dhcp host entry under the bridge.
+            dhcp_subnets = bridge.get_dhcp_subnets()
+            if len(dhcp_subnets) > 0:
+                for dh in dhcp_subnets[0].get_dhcp_hosts():
+                    if dh.get_mac_addr() == mac and \
+                            dh.get_ip_addr() == fixed_ip:
+                        dh.delete()
+
+            bridge.get_port(id).delete()
             qport = super(MidonetPluginV2, self).delete_port(context, id)
         return qport
 
