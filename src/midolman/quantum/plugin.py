@@ -21,6 +21,7 @@ from midonet.client.mgmt import MidonetMgmt
 from midonet.client.web_resource import WebResource
 from midonet.auth.keystone import KeystoneAuth
 from quantum.db import db_base_plugin_v2
+from quantum.db import l3_db
 from quantum.db import api as db
 from quantum.db import models_v2
 from quantum.api.v2 import attributes
@@ -30,7 +31,10 @@ from quantum.common import exceptions as q_exc
 LOG = logging.getLogger('MidonetPluginV2')
 LOG.setLevel(logging.DEBUG)
 
-class MidonetPluginV2(db_base_plugin_v2.QuantumDbPluginV2):
+class MidonetPluginV2(db_base_plugin_v2.QuantumDbPluginV2,
+                      l3_db.L3_NAT_db_mixin):
+
+    supported_extension_aliases = ['router']
 
     def __init__(self):
         # Read plugin config file
@@ -357,3 +361,88 @@ class MidonetPluginV2(db_base_plugin_v2.QuantumDbPluginV2):
 
             qport = super(MidonetPluginV2, self).delete_port(context, id)
         return qport
+
+    #
+    # L3 APIs.
+    #
+
+    def create_router(self, context, router):
+        LOG.debug('create_router: context=%r, router=%r', context.to_dict(),
+                  router)
+
+        if router['router']['admin_state_up'] is False:
+            LOG.warning('Ignoreing admin_state_up=False for router=%r',
+                        router)
+
+        tenant_id = self._get_tenant_id_for_create(context, router['router'])
+        session = context.session
+        with session.begin(subtransactions=True):
+            qrouter = super(MidonetPluginV2, self).create_router(context,
+                                                                 router)
+            mrouter = self.mido_mgmt.add_router()\
+                         .name(router['router']['name'])\
+                         .tenant_id(tenant_id).create()
+
+            # get entry from the DB and update 'id' with MidoNet router id.
+            qrouter_entry = self._get_router(context, qrouter['id'])
+            qrouter['id'] = mrouter.get_id()
+            qrouter_entry.update(qrouter)
+            return qrouter
+
+    def update_router(self, context, id, router):
+        LOG.debug('update_router: context=%r, id=%r, router=%r',
+                  context.to_dict(), id, router)
+
+        if router['router'].get('admin_state_up') is False:
+            raise q_exc.NotImplementedError('admin_state_up=False '
+                                                'routers are not '
+                                                'supported.')
+
+        session = context.session
+        with session.begin(subtransactions=True):
+            changed_name = router['router'].get('name')
+            if changed_name:
+                self.mido_mgmt.get_router(context.tenant_id, id)\
+                              .name(changed_name).update()
+            return super(MidonetPluginV2, self).update_router(context, id,
+                                                              router)
+
+    def delete_router(self, context, id):
+        LOG.debug('delete_router: context=%r, id=%r', context.to_dict(), id)
+
+        session = context.session
+        with session.begin(subtransactions=True):
+            result =  super(MidonetPluginV2, self).delete_router(context, id)
+            self.mido_mgmt.get_router(context.tenant_id, id).delete()
+            return result
+
+    def get_router(self, context, id, fields=None):
+        LOG.debug('get_router: context=%r, id=%r, fields=%r',
+                  context.to_dict(), id, fields)
+
+        session = context.session
+        with session.begin(subtransactions=True):
+            try:
+                self.mido_mgmt.get_router(context.tenant_id, id)
+            except LookupError as e:
+               raise Exception("Databases are out of Syc.")
+
+            return super(MidonetPluginV2, self).get_router(context, id, fields)
+
+    def get_routers(self, context, filters=None, fields=None):
+        LOG.debug('get_routers: context=%r, flters=%r, fields=%r',
+                  context.to_dict(), filters, fields)
+        qrouters = None
+        session = context.session
+        with session.begin(subtransactions=True):
+
+            qrouters = super(MidonetPluginV2, self).get_routers(context,
+                             filters, fields)
+            for qr in qrouters:
+                try:
+                    self.mido_mgmt.get_router(context.tenant_id, qr['id'])
+                except LookupError as e:
+                    raise Exception("Databases are out of Syc.")
+
+        return qrouters
+
