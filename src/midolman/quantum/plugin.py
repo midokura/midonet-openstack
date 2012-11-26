@@ -393,12 +393,11 @@ class MidonetPluginV2(db_base_plugin_v2.QuantumDbPluginV2,
         tenant_id = self._get_tenant_id_for_create(context, router['router'])
         session = context.session
         with session.begin(subtransactions=True):
-            qrouter = super(MidonetPluginV2, self).create_router(context,
-                                                                 router)
             mrouter = self.mido_mgmt.add_router()\
                          .name(router['router']['name'])\
                          .tenant_id(tenant_id).create()
-
+            qrouter = super(MidonetPluginV2, self).create_router(context,
+                                                                 router)
             # get entry from the DB and update 'id' with MidoNet router id.
             qrouter_entry = self._get_router(context, qrouter['id'])
             qrouter['id'] = mrouter.get_id()
@@ -414,51 +413,47 @@ class MidonetPluginV2(db_base_plugin_v2.QuantumDbPluginV2,
                                                 'routers are not '
                                                 'supported.')
 
-        session = context.session
-        with session.begin(subtransactions=True):
-            changed_name = router['router'].get('name')
+        changed_name = router['router'].get('name')
+
+        try:
             if changed_name:
                 self.mido_mgmt.get_router(context.tenant_id, id)\
                               .name(changed_name).update()
-            return super(MidonetPluginV2, self).update_router(context, id,
-                                                              router)
+            qrouter = super(MidonetPluginV2, self).update_router(context, id,
+                                                                 router)
+        except Exception as e:
+            LOG.error('Either MidoNet API or DB for update router failed.')
+            raise e
+        return qrouter
 
     def delete_router(self, context, id):
         LOG.debug('delete_router: context=%r, id=%r', context.to_dict(), id)
 
-        session = context.session
-        with session.begin(subtransactions=True):
-            result =  super(MidonetPluginV2, self).delete_router(context, id)
-            self.mido_mgmt.get_router(context.tenant_id, id).delete()
-            return result
+        result =  super(MidonetPluginV2, self).delete_router(context, id)
+        self.mido_mgmt.get_router(context.tenant_id, id).delete()
+        return result
 
     def get_router(self, context, id, fields=None):
         LOG.debug('get_router: context=%r, id=%r, fields=%r',
                   context.to_dict(), id, fields)
 
-        session = context.session
-        with session.begin(subtransactions=True):
-            try:
-                self.mido_mgmt.get_router(context.tenant_id, id)
-            except LookupError as e:
-               raise Exception("Databases are out of Syc.")
+        try:
+            self.mido_mgmt.get_router(context.tenant_id, id)
+        except LookupError as e:
+           raise Exception("Databases are out of Syc.")
 
-            return super(MidonetPluginV2, self).get_router(context, id, fields)
+        return super(MidonetPluginV2, self).get_router(context, id, fields)
 
     def get_routers(self, context, filters=None, fields=None):
         LOG.debug('get_routers: context=%r, flters=%r, fields=%r',
                   context.to_dict(), filters, fields)
-        qrouters = None
-        session = context.session
-        with session.begin(subtransactions=True):
 
-            qrouters = super(MidonetPluginV2, self).get_routers(context,
+        qrouters = super(MidonetPluginV2, self).get_routers(context,
                              filters, fields)
-            for qr in qrouters:
-                try:
-                    self.mido_mgmt.get_router(context.tenant_id, qr['id'])
-                except LookupError as e:
-                    raise Exception("Databases are out of Syc.")
-
+        for qr in qrouters:
+            try:
+                self.mido_mgmt.get_router(context.tenant_id, qr['id'])
+            except LookupError as e:
+                raise Exception("Databases are out of Syc.")
         return qrouters
 
