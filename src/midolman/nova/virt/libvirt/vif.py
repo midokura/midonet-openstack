@@ -93,31 +93,53 @@ class MidonetVifDriver(LibvirtOpenVswitchDriver):
         # quick-n-dirty for now
         f = open('/etc/midolman/host_uuid.properties')
         lines = f.readlines()
-        host_uuid=filter(lambda x: x.startswith('host_uuid='), lines)[0].strip()[len('host_uuid='):]
+        host_uuid=filter(lambda x: x.startswith('host_uuid='),
+                         lines)[0].strip()[len('host_uuid='):]
         return host_uuid
+
+    def _create_vif(self, instance_uuid, mapping):
+        host_dev_name = self._get_dev_name(instance_uuid, mapping['vif_uuid'])
+        peer_dev_name = None
+
+        if FLAGS.libvirt_type == 'kvm':
+            utils.execute('ip', 'tuntap', 'add', host_dev_name, 'mode', 'tap',
+                          run_as_root=True)
+        elif FLAGS.libvirt_type == 'lxc':
+            peer_dev_name = 'lv' + host_dev_name[4:]
+            utils.execute('ip', 'link', 'add', 'name', host_dev_name, 'type',
+                          'veth', 'peer', 'name', peer_dev_name,
+                          run_as_root=True)
+            utils.execute('ip', 'link', 'set', 'dev', peer_dev_name, 'address',
+                          mapping['mac'], run_as_root=True)
+        utils.execute('ip', 'link', 'set', host_dev_name, 'up',
+                      run_as_root=True)
+        return (host_dev_name, peer_dev_name)
+
+    def _device_exists(self, device):
+        """Check if ethernet device exists."""
+        (_out, err) = utils.execute('ip', 'link', 'show', 'dev', device,
+                                    check_exit_code=False, run_as_root=True)
+        return not err
 
     def plug(self, instance, network, mapping):
         LOG.debug('instance=%r, network=%r, mapping=%r', instance, network,
                                                          mapping)
-        dev_name = self._get_dev_name(instance['uuid'], mapping['vif_uuid'])
-        utils.execute('ip', 'tuntap', 'add', dev_name, 'mode', 'tap', run_as_root=True)
-        utils.execute('ip', 'link', 'set', dev_name, 'up', run_as_root=True)
-
+        host_dev_name, peer_dev_name = self._create_vif(instance['uuid'],
+                                                         mapping)
         result = {}
-        result['name'] = dev_name
+        if peer_dev_name:
+            result['name'] = peer_dev_name
+        else:
+            result['name'] = host_dev_name
         result['mac_address'] = mapping['mac']
         result['script'] = ''
-
-
-        # Not ideal to do this every time, but set the MTU to something big.
-        utils.execute('ip', 'link', 'set', dev_name, 'mtu', FLAGS.midonet_tap_mtu,
-                      run_as_root=True)
 
         (tenant_id, bridge_id, subnet, mac, ip, name) = self._get_dhcp_data(
                 network, mapping)
 
         # Check IP address and Mac Address for Live Migration
-        response, dhcp_hosts = self.mido_conn.dhcp_hosts().list(tenant_id, bridge_id, subnet)
+        response, dhcp_hosts = self.mido_conn.dhcp_hosts().list(tenant_id,
+                bridge_id, subnet)
         dhcp_host_exist = False
         for dhcp in dhcp_hosts:
             if dhcp['macAddr'] == mac and dhcp['ipAddr'] == ip:
@@ -131,7 +153,8 @@ class MidonetVifDriver(LibvirtOpenVswitchDriver):
 
         host_uuid = self._get_host_uuid()
         port_id = self._get_vport_id(tenant_id, bridge_id, mapping['vif_uuid'])
-        self.mido_conn.hosts().add_interface_port_map(host_uuid, port_id, dev_name)
+        self.mido_conn.hosts().add_interface_port_map(host_uuid, port_id,
+                                                      host_dev_name)
 
         return result
 
@@ -145,12 +168,8 @@ class MidonetVifDriver(LibvirtOpenVswitchDriver):
         response, content = self.mido_conn.dhcp_hosts().delete(tenant_id,
                 bridge_id, subnet, mac)
 
-        port_id = self._get_vport_id(tenant_id, bridge_id, mapping['vif_uuid'])
-
-        host_uuid = self._get_host_uuid()
-        self.mido_conn.hosts().del_interface_port_map(host_uuid, port_id)
-
         dev_name = self._get_dev_name(instance['uuid'], mapping['vif_uuid'])
-        utils.execute('ip', 'link', 'delete', dev_name, run_as_root=True)
+        if self._device_exists(dev_name):
+            utils.execute('ip', 'link', 'delete', dev_name, run_as_root=True)
 
 
