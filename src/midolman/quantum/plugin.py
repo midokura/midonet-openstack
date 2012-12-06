@@ -17,9 +17,6 @@
 
 import logging
 import ConfigParser
-from midonet.client.mgmt import MidonetMgmt
-from midonet.client.web_resource import WebResource
-from midonet.auth.keystone import KeystoneAuth
 from quantum.db import db_base_plugin_v2
 from quantum.db import l3_db
 from quantum.db import api as db
@@ -27,6 +24,13 @@ from quantum.db import models_v2
 from quantum.api.v2 import attributes
 from quantum.common.utils import find_config_file
 from quantum.common import exceptions as q_exc
+
+from midonet.client.mgmt import MidonetMgmt
+from midonet.client.web_resource import WebResource
+from midonet.auth.keystone import KeystoneAuth
+from webob import exc as w_exc
+
+
 
 LOG = logging.getLogger('MidonetPluginV2')
 LOG.setLevel(logging.DEBUG)
@@ -94,9 +98,8 @@ class MidonetPluginV2(db_base_plugin_v2.QuantumDbPluginV2,
                              subnet)
 
             try:
-                bridge = self.mido_mgmt.get_bridge(sn_entry['tenant_id'],
-                                                   sn_entry['network_id'])
-            except LookupError as e:
+                bridge = self.mido_mgmt.get_bridge(sn_entry['network_id'])
+            except HTTPError as e:
                 raise q_exc.NetworkNotFound(net_id=subnet['network_id'])
 
             gateway_ip = subnet['subnet']['gateway_ip']
@@ -117,7 +120,7 @@ class MidonetPluginV2(db_base_plugin_v2.QuantumDbPluginV2,
         try:
             bridge = self.mido_mgmt.get_bridge(subnet['tenant_id'],
                                                subnet['network_id'])
-        except LookupError as e:
+        except w_exc.HTTPNotFound as e:
             raise Exception("Databases are out of Sync.")
 
         # get dhcp subnet data from MidoNet bridge.
@@ -140,9 +143,8 @@ class MidonetPluginV2(db_base_plugin_v2.QuantumDbPluginV2,
 
         for sn in subnets:
             try:
-                bridge = self.mido_mgmt.get_bridge(sn['tenant_id'],
-                                                   sn['network_id'])
-            except LookupError as e:
+                bridge = self.mido_mgmt.get_bridge(sn['network_id'])
+            except w_exc.HTTPNotFound as e:
                 raise Exception("Databases are out of Sync.")
 
             # TODO: dedupe this part.
@@ -167,9 +169,8 @@ class MidonetPluginV2(db_base_plugin_v2.QuantumDbPluginV2,
             subnet = super(MidonetPluginV2, self).get_subnet(context, id,
                                                              fields=None)
             try:
-                bridge = self.mido_mgmt.get_bridge(subnet['tenant_id'],
-                                                   subnet['network_id'])
-            except LookupError as e:
+                bridge = self.mido_mgmt.get_bridge(subnet['network_id'])
+            except w_exc.HTTPNotFound as e:
                 raise Exception("Databases are out of Sync.")
 
             dhcp = bridge.get_dhcp_subnets()
@@ -217,8 +218,8 @@ class MidonetPluginV2(db_base_plugin_v2.QuantumDbPluginV2,
             net = super(MidonetPluginV2, self).update_network(
                                               context, id, network)
             try:
-                bridge = self.mido_mgmt.get_bridge(context.tenant_id, id)
-            except LookupError as e:
+                bridge = self.mido_mgmt.get_bridge(id)
+            except w_exc.HTTPNotFound as e:
                 raise q_exc.NetworkNotFound(net_id=id)
             bridge.name(net['name']).update()
         return net
@@ -233,8 +234,8 @@ class MidonetPluginV2(db_base_plugin_v2.QuantumDbPluginV2,
 
         net = super(MidonetPluginV2, self).get_network(context, id, fields)
         try:
-            bridge = self.mido_mgmt.get_bridge(context.tenant_id, id)
-        except LookupError as e:
+            bridge = self.mido_mgmt.get_bridge(id)
+        except w_exc.HTTPNotFound as e:
             raise q_exc.NetworkNotFound(net_id=id)
         return net
 
@@ -249,8 +250,8 @@ class MidonetPluginV2(db_base_plugin_v2.QuantumDbPluginV2,
         bridges = self.mido_mgmt.get_bridges({'tenant_id':context.tenant_id})
         for n in net:
             try:
-                bridge = self.mido_mgmt.get_bridge(context.tenant_id, n['id'])
-            except LookupError as e:
+                bridge = self.mido_mgmt.get_bridge(n['id'])
+            except w_exc.HTTPNotFound as e:
                raise Exception("Databases are out of Syc.")
         return net
 
@@ -262,7 +263,7 @@ class MidonetPluginV2(db_base_plugin_v2.QuantumDbPluginV2,
 
         session = context.session
         with session.begin(subtransactions=True):
-            self.mido_mgmt.get_bridge(context.tenant_id, id).delete()
+            self.mido_mgmt.get_bridge(id).delete()
             super(MidonetPluginV2, self).delete_network(context, id)
 
     def create_port(self, context, port):
@@ -275,9 +276,8 @@ class MidonetPluginV2(db_base_plugin_v2.QuantumDbPluginV2,
         with session.begin(subtransactions=True):
             # get the bridge and create a port on it.
             try:
-                bridge = self.mido_mgmt.get_bridge(port['port']['tenant_id'],
-                                                   port['port']['network_id'])
-            except LookupError as e:
+                bridge = self.mido_mgmt.get_bridge(port['port']['network_id'])
+            except w_exc.HTTPNotFound as e:
                 raise q_exc.NetworkNotFound(net_id=port['port']['network_id'])
 
             bridge_port = bridge.add_materialized_port().create()
@@ -318,10 +318,8 @@ class MidonetPluginV2(db_base_plugin_v2.QuantumDbPluginV2,
         # verify that corresponding port exists in MidoNet.
         try:
             LOG.debug('qport=%r', qport)
-            bridge = self.mido_mgmt.get_bridge(qport['tenant_id'],
-                                               qport['network_id'])
-            #bridge_port = bridge.get_port(id)
-        except LookupError as e:
+            bridge_port = self.mido_mgmt.get_port(id)
+        except w_exc.HTTPNotFound as e:
             raise Exception("Databases are out of Sync.")
         return qport
 
@@ -340,11 +338,9 @@ class MidonetPluginV2(db_base_plugin_v2.QuantumDbPluginV2,
         #      we need to chenge the validation below.
         if len(qports) > 0:
             try:
-                bridge = self.mido_mgmt.get_bridge(context.tenant_id,
-                                                   qports[0]['network_id'])
                 for port in qports:
-                    bridge.get_port(port['id'])
-            except LookupError as e:
+                    self.mido_mgmt.get_port(port['id'])
+            except w_exc.HTTPNotFound as e:
                 raise Exception("Databases are out of Sync.")
         return qports
 
@@ -360,8 +356,7 @@ class MidonetPluginV2(db_base_plugin_v2.QuantumDbPluginV2,
         session = context.session
         with session.begin(subtransactions=True):
             qport = super(MidonetPluginV2, self).get_port(context, id, None)
-            bridge = self.mido_mgmt.get_bridge(context.tenant_id,
-                                               qport['network_id'])
+            bridge = self.mido_mgmt.get_bridge(qport['network_id'])
             # get ip and mac from DB record.
             fixed_ip = qport['fixed_ips'][0]['ip_address']
             mac = qport['mac_address']
@@ -374,7 +369,7 @@ class MidonetPluginV2(db_base_plugin_v2.QuantumDbPluginV2,
                             dh.get_ip_addr() == fixed_ip:
                         dh.delete()
 
-            bridge.get_port(id).delete()
+            self.mido_mgmt.get_port(id).delete()
             qport = super(MidonetPluginV2, self).delete_port(context, id)
         return qport
 
@@ -439,7 +434,7 @@ class MidonetPluginV2(db_base_plugin_v2.QuantumDbPluginV2,
 
         try:
             self.mido_mgmt.get_router(context.tenant_id, id)
-        except LookupError as e:
+        except w_exc.HTTPNotFound as e:
            raise Exception("Databases are out of Syc.")
 
         return super(MidonetPluginV2, self).get_router(context, id, fields)
@@ -453,7 +448,7 @@ class MidonetPluginV2(db_base_plugin_v2.QuantumDbPluginV2,
         for qr in qrouters:
             try:
                 self.mido_mgmt.get_router(context.tenant_id, qr['id'])
-            except LookupError as e:
+            except w_exc.HTTPNotFound as e:
                 raise Exception("Databases are out of Syc.")
         return qrouters
 
