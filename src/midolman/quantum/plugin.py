@@ -280,7 +280,7 @@ class MidonetPluginV2(db_base_plugin_v2.QuantumDbPluginV2,
             except w_exc.HTTPNotFound as e:
                 raise q_exc.NetworkNotFound(net_id=port['port']['network_id'])
 
-            bridge_port = bridge.add_materialized_port().create()
+            bridge_port = bridge.add_exterior_port().create()
 
             # set midonet port id to quantum port id and create a DB record.
             port['port']['id'] = bridge_port.get_id()
