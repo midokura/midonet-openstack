@@ -35,6 +35,9 @@ from webob import exc as w_exc
 LOG = logging.getLogger('MidonetPluginV2')
 LOG.setLevel(logging.DEBUG)
 
+class MidonetResourceNotFound(q_exc.NotFound):
+    message = _('MidoNet %(resource_type)s %(id)s could not be found')
+
 class MidonetPluginV2(db_base_plugin_v2.QuantumDbPluginV2,
                       l3_db.L3_NAT_db_mixin):
 
@@ -116,12 +119,13 @@ class MidonetPluginV2(db_base_plugin_v2.QuantumDbPluginV2,
         LOG.debug('context=%r, id=%r, fields=%r', context.to_dict(), id,
                   fields)
 
-        subnet = super(MidonetPluginV2, self).get_subnet(context, id)
+        qsubnet = super(MidonetPluginV2, self).get_subnet(context, id)
+        mbridge_id = qsubnet['network_id']
         try:
-            bridge = self.mido_mgmt.get_bridge(subnet['tenant_id'],
-                                               subnet['network_id'])
+            bridge = self.mido_mgmt.get_bridge(mbridge_id)
         except w_exc.HTTPNotFound as e:
-            raise Exception("Databases are out of Sync.")
+            raise MidonetResourceNotFound(resource_type='Bridge',
+                                          id=mbridge_id)
 
         # get dhcp subnet data from MidoNet bridge.
         dhcps = bridge.get_dhcp_subnets()
@@ -129,23 +133,27 @@ class MidonetPluginV2(db_base_plugin_v2.QuantumDbPluginV2,
         b_prefix = dhcps[0].get_subnet_length()
 
         # Validate against quantum database.
-        network_address, prefix = subnet['cidr'].split('/')
+        network_address, prefix = qsubnet['cidr'].split('/')
         if network_address != b_network_address or int(prefix) != b_prefix:
-            raise Exception("Databases are out of Sync.")
-        return subnet
+            raise MidonetResourceNotFound(resource_type='DhcpSubnet',
+                                          id=qsubnet['cidr'])
+        return qsubnet
 
     def get_subnets(self, context, filters=None, fields=None):
         """
         List subnets from DB and verify with MidoNet API.
         """
-        LOG.debug('context=%r, filters=%r, fields=%r', context.to_dict(), filters, fields)
-        subnets = super(MidonetPluginV2, self).get_subnets(context, filters, fields)
+        LOG.debug('context=%r, filters=%r, fields=%r', context.to_dict(),
+                  filters, fields)
+        subnets = super(MidonetPluginV2, self).get_subnets(context, filters,
+                                                           fields)
 
         for sn in subnets:
             try:
                 bridge = self.mido_mgmt.get_bridge(sn['network_id'])
             except w_exc.HTTPNotFound as e:
-                raise Exception("Databases are out of Sync.")
+                raise MidonetResourceNotFound(resource_type='Bridge',
+                                              id=sn['network_id'])
 
             # TODO: dedupe this part.
             # get dhcp subnet data from MidoNet bridge.
@@ -156,8 +164,10 @@ class MidonetPluginV2(db_base_plugin_v2.QuantumDbPluginV2,
             # Validate against quantum database.
             if sn.get('cidr'):
                 network_address, prefix = sn['cidr'].split('/')
-                if network_address != b_network_address or int(prefix) != b_prefix:
-                    raise Exception("Databases are out of Sync.")
+                if network_address != b_network_address or \
+                        int(prefix) != b_prefix:
+                    raise MidonetResourceNotFound(resource_type='DhcpSubnet',
+                                          id=sn['cidr'])
         return subnets
 
     def delete_subnet(self, context, id):
@@ -171,7 +181,8 @@ class MidonetPluginV2(db_base_plugin_v2.QuantumDbPluginV2,
             try:
                 bridge = self.mido_mgmt.get_bridge(subnet['network_id'])
             except w_exc.HTTPNotFound as e:
-                raise Exception("Databases are out of Sync.")
+                raise MidonetResourceNotFound(resource_type='Bridge',
+                                              id=subnet['network_id'])
 
             dhcp = bridge.get_dhcp_subnets()
             dhcp[0].delete()
@@ -220,7 +231,7 @@ class MidonetPluginV2(db_base_plugin_v2.QuantumDbPluginV2,
             try:
                 bridge = self.mido_mgmt.get_bridge(id)
             except w_exc.HTTPNotFound as e:
-                raise q_exc.NetworkNotFound(net_id=id)
+                raise MidonetResourceNotFound(resource_type='Bridge', id=id)
             bridge.name(net['name']).update()
         return net
 
@@ -232,12 +243,12 @@ class MidonetPluginV2(db_base_plugin_v2.QuantumDbPluginV2,
         LOG.debug('context=%r, id=%r, fields=%r', context.to_dict(), id,
                   fields)
 
-        net = super(MidonetPluginV2, self).get_network(context, id, fields)
+        qnet = super(MidonetPluginV2, self).get_network(context, id, fields)
         try:
             bridge = self.mido_mgmt.get_bridge(id)
         except w_exc.HTTPNotFound as e:
-            raise q_exc.NetworkNotFound(net_id=id)
-        return net
+            raise MidonetResourceNotFound(resource_type='Bridge', id=id)
+        return qnet
 
     def get_networks(self, context, filters=None, fields=None):
         """
@@ -252,7 +263,8 @@ class MidonetPluginV2(db_base_plugin_v2.QuantumDbPluginV2,
             try:
                 bridge = self.mido_mgmt.get_bridge(n['id'])
             except w_exc.HTTPNotFound as e:
-               raise Exception("Databases are out of Syc.")
+                raise MidonetResourceNotFound(resource_type='Bridge',
+                                              id=n['id'])
         return net
 
     def delete_network(self, context, id):
@@ -261,7 +273,6 @@ class MidonetPluginV2(db_base_plugin_v2.QuantumDbPluginV2,
         """
         LOG.debug('context=%r, id=%r', context.to_dict(), id)
 
-        session = context.session
         with session.begin(subtransactions=True):
             self.mido_mgmt.get_bridge(id).delete()
             super(MidonetPluginV2, self).delete_network(context, id)
@@ -301,7 +312,7 @@ class MidonetPluginV2(db_base_plugin_v2.QuantumDbPluginV2,
     def update_port(self, context, id, port):
         """
         Update port.
-        TODO: Nothing to do with MidoNet?
+        Note: Nothing to do with MidoNet?
         """
         LOG.debug('context=%r, id=%r, port=%r', context.to_dict(), id, port)
         return super(MidonetPluginV2, self).update_port(context, id, port)
@@ -320,7 +331,7 @@ class MidonetPluginV2(db_base_plugin_v2.QuantumDbPluginV2,
             LOG.debug('qport=%r', qport)
             bridge_port = self.mido_mgmt.get_port(id)
         except w_exc.HTTPNotFound as e:
-            raise Exception("Databases are out of Sync.")
+            raise MidonetResourceNotFound(resource_type='Port', id=id)
         return qport
 
     def get_ports(self, context, filters=None, fields=None):
@@ -341,7 +352,8 @@ class MidonetPluginV2(db_base_plugin_v2.QuantumDbPluginV2,
                 for port in qports:
                     self.mido_mgmt.get_port(port['id'])
             except w_exc.HTTPNotFound as e:
-                raise Exception("Databases are out of Sync.")
+                raise MidonetResourceNotFound(resource_type='Port',
+                                              id=port['id'])
         return qports
 
     def delete_port(self, context, id, l3_port_check=True):
@@ -431,13 +443,14 @@ class MidonetPluginV2(db_base_plugin_v2.QuantumDbPluginV2,
     def get_router(self, context, id, fields=None):
         LOG.debug('get_router: context=%r, id=%r, fields=%r',
                   context.to_dict(), id, fields)
+        qrouter = super(MidonetPluginV2, self).get_router(context, id, fields)
 
         try:
             self.mido_mgmt.get_router(id)
         except w_exc.HTTPNotFound as e:
-           raise Exception("Databases are out of Syc.")
+           raise MidonetResourceNotFound(resource_type='Router', id=id)
 
-        return super(MidonetPluginV2, self).get_router(context, id, fields)
+        return qrouter
 
     def get_routers(self, context, filters=None, fields=None):
         LOG.debug('get_routers: context=%r, flters=%r, fields=%r',
@@ -449,6 +462,7 @@ class MidonetPluginV2(db_base_plugin_v2.QuantumDbPluginV2,
             try:
                 self.mido_mgmt.get_router(qr['id'])
             except w_exc.HTTPNotFound as e:
-                raise Exception("Databases are out of Syc.")
+                raise MidonetResourceNotFound(resource_type='Router',
+                                              id=qr['id'])
         return qrouters
 
