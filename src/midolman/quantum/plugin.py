@@ -283,30 +283,28 @@ class MidonetPluginV2(db_base_plugin_v2.QuantumDbPluginV2,
         """
         LOG.debug('context=%r, port=%r', context.to_dict(), port)
 
-        session = context.session
-        with session.begin(subtransactions=True):
-            # get the bridge and create a port on it.
-            try:
-                bridge = self.mido_mgmt.get_bridge(port['port']['network_id'])
-            except w_exc.HTTPNotFound as e:
-                raise q_exc.NetworkNotFound(net_id=port['port']['network_id'])
+        # get the bridge and create a port on it.
+        try:
+            bridge = self.mido_mgmt.get_bridge(port['port']['network_id'])
+        except w_exc.HTTPNotFound as e:
+            raise q_exc.NetworkNotFound(net_id=port['port']['network_id'])
 
-            bridge_port = bridge.add_exterior_port().create()
+        bridge_port = bridge.add_exterior_port().create()
 
-            # set midonet port id to quantum port id and create a DB record.
-            port['port']['id'] = bridge_port.get_id()
-            qport = super(MidonetPluginV2, self).create_port(context, port)
+        # set midonet port id to quantum port id and create a DB record.
+        port['port']['id'] = bridge_port.get_id()
+        qport = super(MidonetPluginV2, self).create_port(context, port)
 
-            # get ip and mac from DB record.
-            fixed_ip = qport['fixed_ips'][0]['ip_address']
-            mac = qport['mac_address']
+        # get ip and mac from DB record.
+        fixed_ip = qport['fixed_ips'][0]['ip_address']
+        mac = qport['mac_address']
 
-            # create dhcp host entry under the bridge.
-            dhcp_subnets = bridge.get_dhcp_subnets()
-            if len(dhcp_subnets) > 0:
-                dhcp_subnets[0].add_dhcp_host().ip_addr(fixed_ip)\
-                                              .mac_addr(mac)\
-                                              .create()
+        # create dhcp host entry under the bridge.
+        dhcp_subnets = bridge.get_dhcp_subnets()
+        if len(dhcp_subnets) > 0:
+            dhcp_subnets[0].add_dhcp_host().ip_addr(fixed_ip)\
+                                           .mac_addr(mac)\
+                                           .create()
         return qport
 
     def update_port(self, context, id, port):
