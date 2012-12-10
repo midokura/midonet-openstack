@@ -283,28 +283,38 @@ class MidonetPluginV2(db_base_plugin_v2.QuantumDbPluginV2,
         """
         LOG.debug('context=%r, port=%r', context.to_dict(), port)
 
+        is_router_interface = False
+        port_data = port['port']
         # get the bridge and create a port on it.
         try:
-            bridge = self.mido_mgmt.get_bridge(port['port']['network_id'])
+            bridge = self.mido_mgmt.get_bridge(port_data['network_id'])
         except w_exc.HTTPNotFound as e:
-            raise q_exc.NetworkNotFound(net_id=port['port']['network_id'])
+            raise MidonetResourceNotFound(resource_type='Bridge',
+                                          id=port_data['network_id'])
 
-        bridge_port = bridge.add_exterior_port().create()
+        if port_data['device_owner'] == l3_db.DEVICE_OWNER_ROUTER_INTF:
+            is_router_interface = True
+
+        if is_router_interface:
+            bridge_port = bridge.add_interior_port().create()
+        else:
+            bridge_port = bridge.add_exterior_port().create()
 
         # set midonet port id to quantum port id and create a DB record.
-        port['port']['id'] = bridge_port.get_id()
+        port_data['id'] = bridge_port.get_id()
         qport = super(MidonetPluginV2, self).create_port(context, port)
 
-        # get ip and mac from DB record.
-        fixed_ip = qport['fixed_ips'][0]['ip_address']
-        mac = qport['mac_address']
+        if not is_router_interface:
+            # get ip and mac from DB record.
+            fixed_ip = qport['fixed_ips'][0]['ip_address']
+            mac = qport['mac_address']
 
-        # create dhcp host entry under the bridge.
-        dhcp_subnets = bridge.get_dhcp_subnets()
-        if len(dhcp_subnets) > 0:
-            dhcp_subnets[0].add_dhcp_host().ip_addr(fixed_ip)\
-                                           .mac_addr(mac)\
-                                           .create()
+            # create dhcp host entry under the bridge.
+            dhcp_subnets = bridge.get_dhcp_subnets()
+            if len(dhcp_subnets) > 0:
+                dhcp_subnets[0].add_dhcp_host().ip_addr(fixed_ip)\
+                                               .mac_addr(mac)\
+                                               .create()
         return qport
 
     def update_port(self, context, id, port):
@@ -464,3 +474,35 @@ class MidonetPluginV2(db_base_plugin_v2.QuantumDbPluginV2,
                                               id=qr['id'])
         return qrouters
 
+
+    def add_router_interface(self, context, router_id, interface_info):
+
+        qport = super(MidonetPluginV2, self).add_router_interface(context,
+                router_id, interface_info)
+
+        if 'subnet_id' in interface_info:
+            subnet_id = interface_info['subnet_id']
+            subnet = self._get_subnet(context, subnet_id)
+
+            gateway_ip = subnet['gateway_ip']
+            network_address, length = subnet['cidr'].split('/')
+
+            # Link the router and the bridge port.
+            mrouter = self.mido_mgmt.get_router(router_id)
+            mrouter_port = mrouter.add_interior_port().port_address(gateway_ip)\
+                                 .network_address(network_address)\
+                                 .network_length(length)\
+                                 .create()
+            mbridge_port = self.mido_mgmt.get_port(qport['port_id'])
+            mrouter_port.link(mbridge_port.get_id())
+
+            # Add a route entry to the subnet
+            mrouter.add_route().type('Normal')\
+                               .src_network_addr('0.0.0.0')\
+                               .src_network_length(0)\
+                               .dst_network_addr(network_address)\
+                               .dst_network_length(length)\
+                               .weight(100)\
+                               .next_hop_port(mrouter_port.get_id())\
+                               .create()
+        return qport
