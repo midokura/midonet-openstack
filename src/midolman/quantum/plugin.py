@@ -412,7 +412,7 @@ class MidonetPluginV2(db_base_plugin_v2.QuantumDbPluginV2,
 
         try:
             if changed_name:
-                self.mido_mgmt.get_router(context.tenant_id, id)\
+                self.mido_mgmt.get_router(id)\
                               .name(changed_name).update()
             qrouter = super(MidonetPluginV2, self).update_router(context, id,
                                                                  router)
@@ -425,7 +425,7 @@ class MidonetPluginV2(db_base_plugin_v2.QuantumDbPluginV2,
         LOG.debug('delete_router: context=%r, id=%r', context.to_dict(), id)
 
         result =  super(MidonetPluginV2, self).delete_router(context, id)
-        self.mido_mgmt.get_router(context.tenant_id, id).delete()
+        self.mido_mgmt.get_router(id).delete()
         return result
 
     def get_router(self, context, id, fields=None):
@@ -433,7 +433,7 @@ class MidonetPluginV2(db_base_plugin_v2.QuantumDbPluginV2,
                   context.to_dict(), id, fields)
 
         try:
-            self.mido_mgmt.get_router(context.tenant_id, id)
+            self.mido_mgmt.get_router(id)
         except w_exc.HTTPNotFound as e:
            raise Exception("Databases are out of Syc.")
 
@@ -447,7 +447,7 @@ class MidonetPluginV2(db_base_plugin_v2.QuantumDbPluginV2,
                              filters, fields)
         for qr in qrouters:
             try:
-                self.mido_mgmt.get_router(context.tenant_id, qr['id'])
+                self.mido_mgmt.get_router(qr['id'])
             except w_exc.HTTPNotFound as e:
                 raise Exception("Databases are out of Syc.")
         return qrouters
