@@ -288,6 +288,7 @@ class MidonetPluginV2(db_base_plugin_v2.QuantumDbPluginV2,
         LOG.debug('context=%r, port=%r', context.to_dict(), port)
 
         is_router_interface = False
+        is_compute_interface = False
         port_data = port['port']
         # get the bridge and create a port on it.
         try:
@@ -296,13 +297,19 @@ class MidonetPluginV2(db_base_plugin_v2.QuantumDbPluginV2,
             raise MidonetResourceNotFound(resource_type='Bridge',
                                           id=port_data['network_id'])
 
-        if port_data['device_owner'] == l3_db.DEVICE_OWNER_ROUTER_INTF:
+        device_owner = port_data['device_owner']
+
+        if device_owner.startswith('compute:') or device_owner is '':
+            is_compute_interface = True
+        elif device_owner == l3_db.DEVICE_OWNER_ROUTER_INTF:
             is_router_interface = True
 
         if is_router_interface:
             bridge_port = bridge.add_interior_port().create()
-        else:
+        elif is_compute_interface:
             bridge_port = bridge.add_exterior_port().create()
+
+        LOG.debug('Created MidoNet bridge port=%r', bridge_port)
 
         # set midonet port id to quantum port id and create a DB record.
         port_data['id'] = bridge_port.get_id()
