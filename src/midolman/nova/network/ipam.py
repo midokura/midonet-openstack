@@ -25,7 +25,6 @@ from nova import log as logging
 from nova.network import manager
 
 from nova.network.quantum.nova_ipam_lib import QuantumNovaIPAMLib
-from midonet.client import MidonetClient
 from midonet.api import PortType
 from midolman.nova.network import midonet_connection
 
@@ -67,56 +66,38 @@ class MidonetNovaIPAMLib(QuantumNovaIPAMLib):
             tenant_id = FLAGS.quantum_default_tenant_id
 
         # Add dhcp information to the bridge
-        response, content = mido_conn.dhcps().create(tenant_id, bridge_id,
-                                                     net_addr, length, gateway)
+        bridge = mido_conn.get_bridge(bridge_id)
+        bridge.add_dhcp_subnet().subnet_prefix(net_addr).subnet_length(
+            length).default_gateway(gateway).create()
 
         # Search tenant router
         tenant_router_name = FLAGS.midonet_tenant_router_name
 
-        response, content = mido_conn.routers().list(tenant_id)
+        content = mido_conn.get_routers({'tenant_id':tenant_id})
         tenant_router_id = None
         for r in content:
-            if r['name'] == tenant_router_name:
+            if r.get_name() == tenant_router_name:
                 LOG.debug("Tenant Router found: %r", r)
                 found = True
-                tenant_router_id = r['id']
+                tenant_router_id = r.get_id()
         assert found
 
         # Create a port in the tenant router
-        response, content = mido_conn.router_ports().create(
-                tenant_id,
-                tenant_router_id,
-                PortType.LOGICAL_ROUTER,
-                net_addr, length,
-                gateway)
-        response, tenant_router_port = mido_conn.get(response['location'])
+        router = mido_conn.get_router(tenant_router_id)
+        tenant_router_port = router.add_interior_port().port_address(
+            gateway).network_address(net_addr).network_length(length).create()
         LOG.debug('tenant_router_port=%r', tenant_router_port)
 
         # Create a port in the bridge
-        response, content = mido_conn.bridge_ports().create(
-                tenant_id,
-                bridge_id,
-                PortType.LOGICAL_BRIDGE)
-
-        response, bridge_port = mido_conn.get(response['location'])
+        bridge = mido_conn.get_bridge(bridge_id)
+        bridge_port = bridge.add_interior_port().create()
         LOG.debug('bridge_port=%r', bridge_port)
 
         # Link them
-        response, content = mido_conn.router_ports().link(
-                tenant_id,
-                tenant_router_id,
-                tenant_router_port['id'],
-                bridge_port['id'])
-
-        tenant_router_port_id = tenant_router_port['id']
+        bridge_port.link(tenant_router_port.get_id())
 
         # Create a route to the subnet in the tenant router
-        response, content = mido_conn.routes().create(
-                tenant_id,
-                tenant_router_id,
-                'Normal',                # type
-                '0.0.0.0', 0,            # source
-                net_addr, length,        # destination
-                100,                     # weight
-                tenant_router_port_id,   # next hop port
-                None)                    # next hop gateway
+        router.add_route().type('Normal').src_network_addr(
+            '0.0.0.0').src_network_length(0).dst_network_addr(
+            net_addr).dst_network_length(length).weight(100).next_hop_port(
+                tenant_router_port.get_id()).create()

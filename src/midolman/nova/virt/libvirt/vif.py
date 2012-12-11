@@ -74,16 +74,16 @@ class MidonetVifDriver(LibvirtOpenVswitchDriver):
 
     def _get_vport_id(self, tenant_id, bridge_id, vif_uuid):
         # Get port id corresponding to the vif
-        response, bridge_ports = self.mido_conn.bridge_ports().list(tenant_id,
-                bridge_id)
+        bridge = self.mido_conn.get_bridge(bridge_id)
+        bridge_ports = bridge.get_ports()
 
         # Search for the port that has the vif attached
         found = False
         for bp in bridge_ports:
-            if bp['type'] != PortType.MATERIALIZED_BRIDGE:
+            if bp.get_type() != PortType.EXTERIOR_BRIDGE:
                 continue
-            if bp['vifId'] == vif_uuid:
-                port_id = bp['id']
+            if bp.get_vif_id() == vif_uuid:
+                port_id = bp.get_id()
                 found = True
                 break
         assert found
@@ -138,23 +138,25 @@ class MidonetVifDriver(LibvirtOpenVswitchDriver):
                 network, mapping)
 
         # Check IP address and Mac Address for Live Migration
-        response, dhcp_hosts = self.mido_conn.dhcp_hosts().list(tenant_id,
-                bridge_id, subnet)
+        bridge = self.mido_conn.get_bridge(bridge_id)
+        dhcp_subnet = bridge.get_dhcp_subnet(subnet)
+        dhcp_hosts = dhcp_subnet.get_dhcp_hosts()
         dhcp_host_exist = False
         for dhcp in dhcp_hosts:
-            if dhcp['macAddr'] == mac and dhcp['ipAddr'] == ip:
+            if dhcp.get_mac_addr() == mac and dhcp.get_ip_addr() == ip:
                  dhcp_host_exist = True
                  break
 
         if not dhcp_host_exist:
-            response, content = self.mido_conn.dhcp_hosts().create(tenant_id,
-                bridge_id, subnet, mac, ip, name)
+            dhcp_subnet.add_dhcp_host().name(name).ip_addr(ip).mac_addr(
+                mac).create()
 
 
         host_uuid = self._get_host_uuid()
         port_id = self._get_vport_id(tenant_id, bridge_id, mapping['vif_uuid'])
-        self.mido_conn.hosts().add_interface_port_map(host_uuid, port_id,
-                                                      host_dev_name)
+        host = self.mido_conn.get_host(host_uuid)
+        host.add_host_interface_port().interface_name(host_dev_name).port_id(
+            port_id).create()
 
         return result
 
@@ -165,8 +167,17 @@ class MidonetVifDriver(LibvirtOpenVswitchDriver):
         (tenant_id, bridge_id, subnet, mac, ip, name) = self._get_dhcp_data(
                 network, mapping)
 
-        response, content = self.mido_conn.dhcp_hosts().delete(tenant_id,
-                bridge_id, subnet, mac)
+        bridge = self.mido_conn.get_bridge(bridge_id)
+        dhcp_subnet = bridge.get_dhcp_subnet(subnet)
+        dhcp_hosts = dhcp_subnet.get_dhcp_hosts()
+        dhcp_host_exist = False
+        for dhcp in dhcp_hosts:
+            if dhcp.get_mac_addr() == mac and dhcp.get_ip_addr() == ip:
+                 dhcp_host_exist = True
+                 break
+
+        if dhcp_host_exist:
+            dhcp.delete()
 
         dev_name = self._get_dev_name(instance['uuid'], mapping['vif_uuid'])
         if self._device_exists(dev_name):

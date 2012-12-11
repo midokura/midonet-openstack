@@ -19,7 +19,9 @@ from nova import flags
 from nova import log as logging
 from nova.openstack.common import cfg
 
-from midonet.client import MidonetClient
+from midonet.auth.keystone import KeystoneAuth
+from midonet.client.mgmt import MidonetMgmt
+from midonet.client.web_resource import WebResource
 import midolman.common.flags as mido_flags
 
 FLAGS = flags.FLAGS
@@ -31,8 +33,10 @@ mido_conn = None
 def get_connection():
     global mido_conn
     if mido_conn == None:
-        mido_conn = MidonetClient(midonet_uri=FLAGS.midonet_uri,
-                 ks_uri=FLAGS.midonet_keystone_uri,
-                 username=FLAGS.midonet_admin_user, password=FLAGS.midonet_admin_password,
-                 tenant_id=FLAGS.midonet_provider_tenant_id)
+        auth = KeystoneAuth(FLAGS.midonet_keystone_uri,
+                            FLAGS.midonet_admin_user,
+                            FLAGS.midonet_admin_password,
+                            tenant_id=FLAGS.midonet_provider_tenant_id)
+        web_resource = WebResource(auth)
+        mido_conn = MidonetMgmt(FLAGS.midonet_uri, web_resource, LOG)
     return mido_conn
