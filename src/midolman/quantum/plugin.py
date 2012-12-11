@@ -480,6 +480,7 @@ class MidonetPluginV2(db_base_plugin_v2.QuantumDbPluginV2,
         qport = super(MidonetPluginV2, self).add_router_interface(context,
                 router_id, interface_info)
 
+        # TODO: handle a case with 'port' in interface_info
         if 'subnet_id' in interface_info:
             subnet_id = interface_info['subnet_id']
             subnet = self._get_subnet(context, subnet_id)
@@ -489,10 +490,11 @@ class MidonetPluginV2(db_base_plugin_v2.QuantumDbPluginV2,
 
             # Link the router and the bridge port.
             mrouter = self.mido_mgmt.get_router(router_id)
-            mrouter_port = mrouter.add_interior_port().port_address(gateway_ip)\
-                                 .network_address(network_address)\
-                                 .network_length(length)\
-                                 .create()
+            mrouter_port = mrouter.add_interior_port()\
+                                  .port_address(gateway_ip)\
+                                  .network_address(network_address)\
+                                  .network_length(length)\
+                                  .create()
             mbridge_port = self.mido_mgmt.get_port(qport['port_id'])
             mrouter_port.link(mbridge_port.get_id())
 
