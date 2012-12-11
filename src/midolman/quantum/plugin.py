@@ -512,3 +512,49 @@ class MidonetPluginV2(db_base_plugin_v2.QuantumDbPluginV2,
                                .next_hop_port(mrouter_port.get_id())\
                                .create()
         return qport
+
+    def remove_router_interface(self, context, router_id, interface_info):
+        """
+        Remove interior ports that are on the router and the network
+        specified in the request.
+        """
+
+        # TODO: handle a case with 'port' in interface_info
+        if 'subnet_id' in interface_info:
+
+            subnet_id = interface_info['subnet_id']
+            subnet = self._get_subnet(context, subnet_id)
+            network_id = subnet['network_id']
+
+            # find a quantum port for the network
+            rport_qry = context.session.query(models_v2.Port)
+            ports = rport_qry.filter_by(
+                device_id=router_id,
+                device_owner=l3_db.DEVICE_OWNER_ROUTER_INTF,
+                network_id=subnet['network_id']).all()
+            network_port = None
+            for p in ports:
+                if p['fixed_ips'][0]['subnet_id'] == subnet_id:
+                    network_port = p
+                    break
+            assert network_port
+
+            # Unlink the router and the bridge.
+            mrouter = self.mido_mgmt.get_router(router_id)
+            mbridge_port = self.mido_mgmt.get_port(network_port['id'])
+            mrouter_port = self.mido_mgmt.get_port(mbridge_port.get_peer_id())
+            mrouter_port.unlink()
+
+            # Delete the route going to the bridge that has the subnet.
+            found = False
+            for r in mrouter.get_routes():
+                if r.get_next_hop_port() == mrouter_port.get_id():
+                    LOG.debug('Deleting route=%r ...', r)
+                    r.delete()
+                    found = True
+                    #break   # commented out due to issue#314
+            assert found
+
+        super(MidonetPluginV2, self).remove_router_interface(context,
+                router_id, interface_info)
+
