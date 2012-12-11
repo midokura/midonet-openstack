@@ -273,9 +273,13 @@ class MidonetPluginV2(db_base_plugin_v2.QuantumDbPluginV2,
         """
         LOG.debug('context=%r, id=%r', context.to_dict(), id)
 
-        with session.begin(subtransactions=True):
-            self.mido_mgmt.get_bridge(id).delete()
+        self.mido_mgmt.get_bridge(id).delete()
+        try:
             super(MidonetPluginV2, self).delete_network(context, id)
+        except Exception as e:
+            LOG.error('Failed to delete quantum db, while Midonet bridge=%r'
+                      'had been deleted', id)
+            raise e
 
     def create_port(self, context, port):
         """
