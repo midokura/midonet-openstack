@@ -23,6 +23,7 @@ from nova.openstack.common import log as logging
 from nova.virt import vif
 from nova.virt.libvirt import config
 from nova.virt.libvirt.vif import FLAGS as vif_flags
+from webob import exc as w_exc
 
 from midolman.nova.midonet_connection import get_mido_mgmt
 
@@ -90,9 +91,9 @@ class MidonetVifDriver(vif.VIFDriver):
         host_uuid = self._get_host_uuid()
         try:
             host = self.mido_mgmt.get_host(host_uuid)
-        except LookupError as e:
-            LOG.error('Failed to create a if-vport mapping. '
-                      'Host %s is not found or not active.', host_uuid)
+        except w_exc.HTTPError as e:
+            LOG.error('Failed to create a if-vport mapping on host=%s',
+                      host_uuid)
             raise e
         host.add_host_interface_port().port_id(vport_id)\
             .interface_name(dev_name).create()
