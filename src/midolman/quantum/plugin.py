@@ -208,6 +208,11 @@ class MidonetPluginV2(db_base_plugin_v2.QuantumDbPluginV2,
             # Set MidoNet bridge ID to the quantum DB entry
             network['network']['id'] = bridge.get_id()
             net = super(MidonetPluginV2, self).create_network(context, network)
+
+            # to handle l3 related data in DB
+            self._process_l3_create(context, network['network'], net['id'])
+            self._extend_network_dict_provider(context, net)
+            self._extend_network_dict_l3(context, net)
         return net
 
     def update_network(self, context, id, network):
@@ -526,7 +531,11 @@ class MidonetPluginV2(db_base_plugin_v2.QuantumDbPluginV2,
         specified in the request.
         """
 
-        # TODO: handle a case with 'port' in interface_info
+        if 'port_id' in interface_info:
+            LOG.error('adding interface with existing port is not supported. '
+                      'Try doing it with subnet_id')
+            raise q_exc.NotImplementedError()
+
         if 'subnet_id' in interface_info:
 
             subnet_id = interface_info['subnet_id']
