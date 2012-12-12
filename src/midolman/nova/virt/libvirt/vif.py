@@ -97,15 +97,19 @@ class MidonetVifDriver(LibvirtOpenVswitchDriver):
                          lines)[0].strip()[len('host_uuid='):]
         return host_uuid
 
-    def _create_vif(self, instance_uuid, mapping):
+    def _create_vif(self, instance_uuid, mapping, create_device):
         host_dev_name = self._get_dev_name(instance_uuid, mapping['vif_uuid'])
         peer_dev_name = None
+        if FLAGS.libvirt_type == 'lxc':
+            peer_dev_name = 'lv' + host_dev_name[4:]
+
+        if not create_device:
+            return (host_dev_name, peer_dev_name)
 
         if FLAGS.libvirt_type == 'kvm':
             utils.execute('ip', 'tuntap', 'add', host_dev_name, 'mode', 'tap',
                           run_as_root=True)
         elif FLAGS.libvirt_type == 'lxc':
-            peer_dev_name = 'lv' + host_dev_name[4:]
             utils.execute('ip', 'link', 'add', 'name', host_dev_name, 'type',
                           'veth', 'peer', 'name', peer_dev_name,
                           run_as_root=True)
@@ -124,8 +128,11 @@ class MidonetVifDriver(LibvirtOpenVswitchDriver):
     def plug(self, instance, network, mapping):
         LOG.debug('instance=%r, network=%r, mapping=%r', instance, network,
                                                          mapping)
-        host_dev_name, peer_dev_name = self._create_vif(instance['uuid'],
-                                                         mapping)
+        create_device = True
+        if self._device_exists(host_dev_name):
+            create_device = False
+        host_dev_name, peer_dev_name = self._create_vif(
+            instance['uuid'], mapping, create_device)
         result = {}
         if peer_dev_name:
             result['name'] = peer_dev_name
@@ -133,6 +140,9 @@ class MidonetVifDriver(LibvirtOpenVswitchDriver):
             result['name'] = host_dev_name
         result['mac_address'] = mapping['mac']
         result['script'] = ''
+
+        if not create_device:
+            return result
 
         (tenant_id, bridge_id, subnet, mac, ip, name) = self._get_dhcp_data(
                 network, mapping)
