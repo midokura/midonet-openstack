@@ -19,7 +19,7 @@ from nova import context
 from nova import db
 from nova import log as logging
 
-from midonet.api import PortType
+import midonet.client.port_type as PortType
 
 LOG = logging.getLogger('nova...' + __name__)
 

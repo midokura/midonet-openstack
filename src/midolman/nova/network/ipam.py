@@ -25,7 +25,7 @@ from nova import log as logging
 from nova.network import manager
 
 from nova.network.quantum.nova_ipam_lib import QuantumNovaIPAMLib
-from midonet.api import PortType
+import midonet.client.port_type as PortType
 from midolman.nova.network import midonet_connection
 
 # Add 'nova' prefix for nova's logging setting

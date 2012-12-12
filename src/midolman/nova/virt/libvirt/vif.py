@@ -25,7 +25,7 @@ from nova.openstack.common import cfg
 from nova.virt.libvirt.vif import LibvirtOpenVswitchDriver
 
 from midolman.nova.network import midonet_connection
-from midonet.api import PortType
+import midonet.client.port_type as PortType
 
 
 midonet_opts = [

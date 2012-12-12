@@ -28,7 +28,7 @@ from quantum.common import exceptions as exception
 from midonet.auth.keystone import KeystoneAuth
 from midonet.client.mgmt import MidonetMgmt
 from midonet.client.web_resource import WebResource
-from midonet.api import PortType
+import midonet.client.port_type as PortType
 from midolman.common.openstack import RouterName, ChainManager, PortGroupManager
 
 
