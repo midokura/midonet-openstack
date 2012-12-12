@@ -106,7 +106,7 @@ class MidonetVifDriver(LibvirtOpenVswitchDriver):
         if not create_device:
             return (host_dev_name, peer_dev_name)
 
-        if FLAGS.libvirt_type == 'kvm':
+        if FLAGS.libvirt_type == 'kvm' or FLAGS.libvirt_type == 'qemu':
             utils.execute('ip', 'tuntap', 'add', host_dev_name, 'mode', 'tap',
                           run_as_root=True)
         elif FLAGS.libvirt_type == 'lxc':
