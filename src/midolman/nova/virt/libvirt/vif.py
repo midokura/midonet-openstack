@@ -128,6 +128,8 @@ class MidonetVifDriver(LibvirtOpenVswitchDriver):
     def plug(self, instance, network, mapping):
         LOG.debug('instance=%r, network=%r, mapping=%r', instance, network,
                                                          mapping)
+        host_dev_name = self._get_dev_name(instance['uuid'],
+                                           mapping['vif_uuid'])
         create_device = True
         if self._device_exists(host_dev_name):
             create_device = False
