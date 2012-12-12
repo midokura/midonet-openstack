@@ -26,7 +26,7 @@ from nova.network.quantum.manager import QuantumManager
 from midolman.nova.network import midonet_connection
 from midolman.common.openstack import ChainManager, PortGroupManager,\
         RuleManager
-from midonet.api import PortType
+import midonet.client.port_type as PortType
 
 
 LOG = logging.getLogger('nova...' + __name__)
