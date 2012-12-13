@@ -62,7 +62,8 @@ class MidonetPluginV2(db_base_plugin_v2.QuantumDbPluginV2,
         auth = KeystoneAuth(uri=keystone_uri,
                             username=admin_user, password=admin_pass,
                             tenant_name=admin_tenant_name)
-        web_resource = WebResource(auth, logger=LOG)
+        client_logger = logging.getLogger('midonet.client')
+        web_resource = WebResource(auth, logger=client_logger)
         # Create MidoNet Management API wrapper object.
         self.mido_mgmt = MidonetMgmt(web_resource=web_resource, logger=LOG)
 
@@ -251,14 +252,16 @@ class MidonetPluginV2(db_base_plugin_v2.QuantumDbPluginV2,
         LOG.debug('context=%r, id=%r, fields=%r', context.to_dict(), id,
                   fields)
 
-        qnet = super(MidonetPluginV2, self).get_network(context, id, fields)
+        # NOTE: Get network data with all fields (fields=None) for
+        #       _extend_network_dict_l3() method, which needs 'id' field
+        qnet = super(MidonetPluginV2, self).get_network(context, id, None)
         try:
             bridge = self.mido_mgmt.get_bridge(id)
         except w_exc.HTTPNotFound as e:
             raise MidonetResourceNotFound(resource_type='Bridge', id=id)
 
         self._extend_network_dict_l3(context, qnet)
-        return qnet
+        return self._fields(qnet, fields)
 
     def get_networks(self, context, filters=None, fields=None):
         """
@@ -267,17 +270,19 @@ class MidonetPluginV2(db_base_plugin_v2.QuantumDbPluginV2,
         LOG.debug('context=%r, filters=%r, fields=%r', context.to_dict(),
                   filters, fields)
 
-        net = super(MidonetPluginV2, self).get_networks(context, filters,
-                                                        fields)
+        # NOTE: Get network data with all fields (fields=None) for
+        #       _extend_network_dict_l3() method, which needs 'id' field
+        qnets = super(MidonetPluginV2, self).get_networks(context, filters,
+                                                          None)
         bridges = self.mido_mgmt.get_bridges({'tenant_id': context.tenant_id})
-        for n in net:
+        for n in qnets:
             try:
                 bridge = self.mido_mgmt.get_bridge(n['id'])
             except w_exc.HTTPNotFound as e:
                 raise MidonetResourceNotFound(resource_type='Bridge',
                                               id=n['id'])
             self._extend_network_dict_l3(context, n)
-        return net
+        return [self._fields(net, fields) for net in qnets]
 
     def delete_network(self, context, id):
         """
