@@ -266,7 +266,6 @@ class RuleManager:
 
         position = 1
         # get the port groups to match for the rule
-        port_group_ids = []
         port_groups = self.mido_conn.get_port_groups({'tenant_id': tenant_id})
 
         if allow_same_net_traffic:
@@ -303,8 +302,8 @@ class RuleManager:
 
             # Look for the port group that the vif should belong to
             for pg in port_groups:
-                if pg.get_name() == cname:
-                    port_group_ids.append(pg.get_id())
+                if pg.get_name() != cname:
+                    port_groups.remove(pg)
 
         # add reverse flow matching at the end
         out_chain.add_rule().type('accept').match_return_flow(True).position(
@@ -333,11 +332,13 @@ class RuleManager:
         assert found
         LOG.debug('bridge_port=%r found', bridge_port)
 
-        # set filters and port group ids
+        # set filters
         bridge_port.inbound_filter_id(in_chain.get_id())
         bridge_port.outbound_filter_id(out_chain.get_id())
-        bridge_port.port_group_ids(port_group_ids)
         bridge_port.update()
+        # adding the port to port groups
+        for pg in port_groups:
+            pg.add_port_group_port().port_id(bridge_port.get_id()).create()
 
 
 class RouterName:
