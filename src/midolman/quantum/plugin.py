@@ -31,12 +31,13 @@ from midonet.auth.keystone import KeystoneAuth
 from webob import exc as w_exc
 
 
-
 LOG = logging.getLogger('MidonetPluginV2')
 LOG.setLevel(logging.DEBUG)
 
+
 class MidonetResourceNotFound(q_exc.NotFound):
     message = _('MidoNet %(resource_type)s %(id)s could not be found')
+
 
 class MidonetPluginV2(db_base_plugin_v2.QuantumDbPluginV2,
                       l3_db.L3_NAT_db_mixin):
@@ -46,7 +47,7 @@ class MidonetPluginV2(db_base_plugin_v2.QuantumDbPluginV2,
     def __init__(self):
         # Read plugin config file
         config = ConfigParser.RawConfigParser()
-        config_file = find_config_file({"plugin":"midonet"},
+        config_file = find_config_file({"plugin": "midonet"},
                                         "midonet_plugin.ini")
         if not config_file:
             raise Exception("Configuration file %s doesn't exist" %
@@ -266,8 +267,9 @@ class MidonetPluginV2(db_base_plugin_v2.QuantumDbPluginV2,
         LOG.debug('context=%r, filters=%r, fields=%r', context.to_dict(),
                   filters, fields)
 
-        net = super(MidonetPluginV2, self).get_networks(context, filters, fields)
-        bridges = self.mido_mgmt.get_bridges({'tenant_id':context.tenant_id})
+        net = super(MidonetPluginV2, self).get_networks(context, filters,
+                                                        fields)
+        bridges = self.mido_mgmt.get_bridges({'tenant_id': context.tenant_id})
         for n in net:
             try:
                 bridge = self.mido_mgmt.get_bridge(n['id'])
@@ -276,6 +278,7 @@ class MidonetPluginV2(db_base_plugin_v2.QuantumDbPluginV2,
                                               id=n['id'])
             self._extend_network_dict_l3(context, n)
         return net
+
     def delete_network(self, context, id):
         """
         Delete a network and its corresponding MidoNet bridge.
@@ -349,7 +352,8 @@ class MidonetPluginV2(db_base_plugin_v2.QuantumDbPluginV2,
         """
         Retrieve a port.
         """
-        LOG.debug('context=%r, id=%r, fields=%r', context.to_dict(), id, fields)
+        LOG.debug('context=%r, id=%r, fields=%r', context.to_dict(), id,
+                  fields)
 
         # get the quantum port from DB.
         qport = super(MidonetPluginV2, self).get_port(context, id, fields)
@@ -464,7 +468,7 @@ class MidonetPluginV2(db_base_plugin_v2.QuantumDbPluginV2,
     def delete_router(self, context, id):
         LOG.debug('delete_router: context=%r, id=%r', context.to_dict(), id)
 
-        result =  super(MidonetPluginV2, self).delete_router(context, id)
+        result = super(MidonetPluginV2, self).delete_router(context, id)
         self.mido_mgmt.get_router(id).delete()
         return result
 
@@ -476,7 +480,7 @@ class MidonetPluginV2(db_base_plugin_v2.QuantumDbPluginV2,
         try:
             self.mido_mgmt.get_router(id)
         except w_exc.HTTPNotFound as e:
-           raise MidonetResourceNotFound(resource_type='Router', id=id)
+            raise MidonetResourceNotFound(resource_type='Router', id=id)
 
         return qrouter
 
@@ -576,4 +580,3 @@ class MidonetPluginV2(db_base_plugin_v2.QuantumDbPluginV2,
 
         super(MidonetPluginV2, self).remove_router_interface(context,
                 router_id, interface_info)
-
