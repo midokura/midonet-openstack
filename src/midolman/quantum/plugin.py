@@ -211,7 +211,6 @@ class MidonetPluginV2(db_base_plugin_v2.QuantumDbPluginV2,
 
             # to handle l3 related data in DB
             self._process_l3_create(context, network['network'], net['id'])
-            self._extend_network_dict_provider(context, net)
             self._extend_network_dict_l3(context, net)
         return net
 
@@ -237,7 +236,10 @@ class MidonetPluginV2(db_base_plugin_v2.QuantumDbPluginV2,
                 bridge = self.mido_mgmt.get_bridge(id)
             except w_exc.HTTPNotFound as e:
                 raise MidonetResourceNotFound(resource_type='Bridge', id=id)
+            #TODO: check if name has really been changed
             bridge.name(net['name']).update()
+
+        self._extend_network_dict_l3(context, net)
         return net
 
     def get_network(self, context, id, fields=None):
@@ -253,6 +255,8 @@ class MidonetPluginV2(db_base_plugin_v2.QuantumDbPluginV2,
             bridge = self.mido_mgmt.get_bridge(id)
         except w_exc.HTTPNotFound as e:
             raise MidonetResourceNotFound(resource_type='Bridge', id=id)
+
+        self._extend_network_dict_l3(context, qnet)
         return qnet
 
     def get_networks(self, context, filters=None, fields=None):
@@ -270,8 +274,8 @@ class MidonetPluginV2(db_base_plugin_v2.QuantumDbPluginV2,
             except w_exc.HTTPNotFound as e:
                 raise MidonetResourceNotFound(resource_type='Bridge',
                                               id=n['id'])
+            self._extend_network_dict_l3(context, n)
         return net
-
     def delete_network(self, context, id):
         """
         Delete a network and its corresponding MidoNet bridge.
@@ -489,7 +493,6 @@ class MidonetPluginV2(db_base_plugin_v2.QuantumDbPluginV2,
                 raise MidonetResourceNotFound(resource_type='Router',
                                               id=qr['id'])
         return qrouters
-
 
     def add_router_interface(self, context, router_id, interface_info):
 
