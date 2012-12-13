@@ -103,7 +103,7 @@ class MidonetPluginV2(db_base_plugin_v2.QuantumDbPluginV2,
 
             try:
                 bridge = self.mido_mgmt.get_bridge(sn_entry['network_id'])
-            except HTTPError as e:
+            except w_exc.HTTPNotFound as e:
                 raise q_exc.NetworkNotFound(net_id=subnet['network_id'])
 
             gateway_ip = subnet['subnet']['gateway_ip']
