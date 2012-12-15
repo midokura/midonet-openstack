@@ -62,10 +62,21 @@ class MidonetPluginV2(db_base_plugin_v2.QuantumDbPluginV2,
         auth = KeystoneAuth(uri=keystone_uri,
                             username=admin_user, password=admin_pass,
                             tenant_name=admin_tenant_name)
+
+        # get token to save provider tenant id
+        token = auth.get_token()
+        self.provider_tenant_id = token.tenant['id']
+
+        self.provider_router_name = config.get('midonet',
+                                                'provider_router_name')
+
+        # Create MidoNet Management API wrapper object.
         client_logger = logging.getLogger('midonet.client')
         web_resource = WebResource(auth, logger=client_logger)
-        # Create MidoNet Management API wrapper object.
         self.mido_mgmt = MidonetMgmt(web_resource=web_resource, logger=LOG)
+
+        # get MidoNet provider router
+        self.provider_router = self._get_or_create_provider_router()
 
         # Create sql connection
         sql_connection = config.get('mysql', 'sql_connection')
@@ -585,3 +596,22 @@ class MidonetPluginV2(db_base_plugin_v2.QuantumDbPluginV2,
 
         super(MidonetPluginV2, self).remove_router_interface(context,
                 router_id, interface_info)
+
+    def _get_or_create_provider_router(self):
+        """
+        Get the provider router object, searching by name configured in the
+        config file.
+        If not found, it'll create one.
+        """
+
+        routers = self.mido_mgmt.get_routers(
+            {'tenant_id': self.provider_tenant_id})
+
+        for r in routers:
+            if r.get_name() == self.provider_router_name:
+                return r
+
+        return self.mido_mgmt.add_router()\
+                             .tenant_id(self.provider_tenant_id)\
+                             .name(self.provider_router_name)\
+                             .create()
