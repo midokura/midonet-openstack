@@ -567,15 +567,11 @@ class MidonetPluginV2(db_base_plugin_v2.QuantumDbPluginV2,
         tenant_id = mrouter.get_tenant_id()
         mrouter.delete()
 
-        in_name = OS_ROUTER_IN_CHAIN_NAME_FORMAT % mrouter.get_id()
-        out_name = OS_ROUTER_OUT_CHAIN_NAME_FORMAT % mrouter.get_id()
-
         # delete corresponding chains
-        for c in  self.mido_mgmt.get_chains({'tenant_id': tenant_id}):
-            if c.get_name() == in_name:
-                c.delete()
-            elif c.get_name() == out_name:
-                c.delete()
+        chains = self._get_chains(tenant_id, mrouter.get_id())
+        chains['in'].delete()
+        chains['out'].delete()
+
         result = super(MidonetPluginV2, self).delete_router(context, id)
         return result
 
@@ -705,3 +701,21 @@ class MidonetPluginV2(db_base_plugin_v2.QuantumDbPluginV2,
                              .tenant_id(self.provider_tenant_id)\
                              .name(self.provider_router_name)\
                              .create()
+
+    # TODO: factor out to common.openstack.ChainManager.
+    def _get_chains(self, tenant_id, router_id):
+        """
+        Returns a dictionary that has in/out chain resources key'ed
+        by 'in' and 'out' respectively, given tenant_id and router id.
+        """
+
+        in_name = OS_ROUTER_IN_CHAIN_NAME_FORMAT % router_id
+        out_name = OS_ROUTER_OUT_CHAIN_NAME_FORMAT % router_id
+
+        chains = {}
+        for c in  self.mido_mgmt.get_chains({'tenant_id': tenant_id}):
+            if c.get_name() == in_name:
+                chains['in'] = c
+            elif c.get_name() == out_name:
+                chains['out'] = c
+        return chains
