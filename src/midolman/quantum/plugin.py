@@ -33,6 +33,9 @@ from webob import exc as w_exc
 
 LOG = logging.getLogger('MidonetPluginV2')
 LOG.setLevel(logging.DEBUG)
+#TODO: Make it configurable
+OS_ROUTER_IN_CHAIN_NAME_FORMAT = 'OS_IN_%s'
+OS_ROUTER_OUT_CHAIN_NAME_FORMAT = 'OS_OUT_%s'
 
 
 class MidonetResourceNotFound(q_exc.NotFound):
@@ -511,6 +514,24 @@ class MidonetPluginV2(db_base_plugin_v2.QuantumDbPluginV2,
                          .tenant_id(tenant_id).create()
             qrouter = super(MidonetPluginV2, self).create_router(context,
                                                                  router)
+
+            in_name = OS_ROUTER_IN_CHAIN_NAME_FORMAT % mrouter.get_id()
+            out_name = OS_ROUTER_OUT_CHAIN_NAME_FORMAT % mrouter.get_id()
+            in_chain = self.mido_mgmt.add_chain()\
+                                     .tenant_id(tenant_id)\
+                                     .name(in_name)\
+                                     .create()
+
+            out_chain = self.mido_mgmt.add_chain()\
+                                      .tenant_id(tenant_id)\
+                                      .name(out_name)\
+                                      .create()
+
+            # set chains to in/out filters
+            mrouter.inbound_filter_id(in_chain.get_id())\
+                   .outbound_filter_id(out_chain.get_id())\
+                   .update()
+
             # get entry from the DB and update 'id' with MidoNet router id.
             qrouter_entry = self._get_router(context, qrouter['id'])
             qrouter['id'] = mrouter.get_id()
@@ -542,8 +563,20 @@ class MidonetPluginV2(db_base_plugin_v2.QuantumDbPluginV2,
     def delete_router(self, context, id):
         LOG.debug('delete_router: context=%r, id=%r', context.to_dict(), id)
 
+        mrouter = self.mido_mgmt.get_router(id)
+        tenant_id = mrouter.get_tenant_id()
+        mrouter.delete()
+
+        in_name = OS_ROUTER_IN_CHAIN_NAME_FORMAT % mrouter.get_id()
+        out_name = OS_ROUTER_OUT_CHAIN_NAME_FORMAT % mrouter.get_id()
+
+        # delete corresponding chains
+        for c in  self.mido_mgmt.get_chains({'tenant_id': tenant_id}):
+            if c.get_name() == in_name:
+                c.delete()
+            elif c.get_name() == out_name:
+                c.delete()
         result = super(MidonetPluginV2, self).delete_router(context, id)
-        self.mido_mgmt.get_router(id).delete()
         return result
 
     def get_router(self, context, id, fields=None):
@@ -555,7 +588,6 @@ class MidonetPluginV2(db_base_plugin_v2.QuantumDbPluginV2,
             self.mido_mgmt.get_router(id)
         except w_exc.HTTPNotFound as e:
             raise MidonetResourceNotFound(resource_type='Router', id=id)
-
         return qrouter
 
     def get_routers(self, context, filters=None, fields=None):
