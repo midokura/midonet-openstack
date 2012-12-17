@@ -37,6 +37,10 @@ LOG.setLevel(logging.DEBUG)
 OS_ROUTER_IN_CHAIN_NAME_FORMAT = 'OS_IN_%s'
 OS_ROUTER_OUT_CHAIN_NAME_FORMAT = 'OS_OUT_%s'
 
+OS_TENANT_ROUTER_RULE_KEY = 'OS_TENANT_ROUTER_RULE'
+SNAT_RULE = 'SNAT'
+SNAT_RULE_PROPERTY = {OS_TENANT_ROUTER_RULE_KEY: SNAT_RULE}
+
 
 class MidonetResourceNotFound(q_exc.NotFound):
     message = _('MidoNet %(resource_type)s %(id)s could not be found')
@@ -390,31 +394,33 @@ class MidonetPluginV2(db_base_plugin_v2.QuantumDbPluginV2,
 
         if device_owner.startswith('compute:') or device_owner is '':
             is_compute_interface = True
-        elif device_owner == l3_db.DEVICE_OWNER_ROUTER_INTF:
-            is_router_interface = True
-
-        if is_router_interface:
-            bridge_port = bridge.add_interior_port().create()
-        elif is_compute_interface:
             bridge_port = bridge.add_exterior_port().create()
+        elif device_owner == l3_db.DEVICE_OWNER_ROUTER_INTF:
+            bridge_port = bridge.add_interior_port().create()
+        elif device_owner == l3_db.DEVICE_OWNER_ROUTER_GW:
+            # This is a dummy port to make l3_db happy
+            # will not be used in MidoNet
+            bridge_port = bridge.add_interior_port().create()
 
-        LOG.debug('Created MidoNet bridge port=%r', bridge_port)
+        if bridge_port:
+            LOG.debug('Created MidoNet bridge port=%r', bridge_port)
+            # set midonet port id to quantum port id and create a DB record.
+            port_data['id'] = bridge_port.get_id()
 
-        # set midonet port id to quantum port id and create a DB record.
-        port_data['id'] = bridge_port.get_id()
-        qport = super(MidonetPluginV2, self).create_port(context, port)
+        session = context.session
+        with session.begin(subtransactions=True):
+            qport = super(MidonetPluginV2, self).create_port(context, port)
+            if is_compute_interface:
+                # get ip and mac from DB record.
+                fixed_ip = qport['fixed_ips'][0]['ip_address']
+                mac = qport['mac_address']
 
-        if not is_router_interface:
-            # get ip and mac from DB record.
-            fixed_ip = qport['fixed_ips'][0]['ip_address']
-            mac = qport['mac_address']
-
-            # create dhcp host entry under the bridge.
-            dhcp_subnets = bridge.get_dhcp_subnets()
-            if len(dhcp_subnets) > 0:
-                dhcp_subnets[0].add_dhcp_host().ip_addr(fixed_ip)\
-                                               .mac_addr(mac)\
-                                               .create()
+                # create dhcp host entry under the bridge.
+                dhcp_subnets = bridge.get_dhcp_subnets()
+                if len(dhcp_subnets) > 0:
+                    dhcp_subnets[0].add_dhcp_host().ip_addr(fixed_ip)\
+                                                   .mac_addr(mac)\
+                                                   .create()
         return qport
 
     def update_port(self, context, id, port):
@@ -547,17 +553,146 @@ class MidonetPluginV2(db_base_plugin_v2.QuantumDbPluginV2,
                                                 'routers are not '
                                                 'supported.')
 
-        changed_name = router['router'].get('name')
+        op_gateway_set = False
+        op_gateway_clear = False
 
-        try:
-            if changed_name:
-                self.mido_mgmt.get_router(id)\
-                              .name(changed_name).update()
+        # figure out which operation it is in
+        if 'external_gateway_info' in router['router'] and \
+                'network_id' in router['router']['external_gateway_info']:
+            op_gateway_set = True
+            external_net_id = \
+                    router['router']['external_gateway_info']['network_id']
+        elif 'external_gateway_info' in router['router'] and \
+                router['router']['external_gateway_info'] == {}:
+            op_gateway_clear = True
+
+            qports = super(MidonetPluginV2, self).get_ports(context,
+                {'device_id': [id],
+                 'device_owner': ['network:router_gateway']})
+
+            assert len(qports) == 1
+            qport = qports[0]
+            snat_ip = qport['fixed_ips'][0]['ip_address']
+            bridge_id = qport['network_id']
+
+        session = context.session
+        with session.begin(subtransactions=True):
+
             qrouter = super(MidonetPluginV2, self).update_router(context, id,
                                                                  router)
-        except Exception as e:
-            LOG.error('Either MidoNet API or DB for update router failed.')
-            raise e
+
+            changed_name = router['router'].get('name')
+            if changed_name:
+                self.mido_mgmt.get_router(id).name(changed_name).update()
+
+            tenant_router = self.mido_mgmt.get_router(id)
+            if op_gateway_set:
+                # find a qport with the network_id for the router
+                qports = super(MidonetPluginV2, self).get_ports(context,
+                    {'device_id': [id],
+                     'device_owner': ['network:router_gateway']})
+                assert len(qports) == 1
+                qport = qports[0]
+                snat_ip = qport['fixed_ips'][0]['ip_address']
+
+                pr_port = self.provider_router\
+                        .add_interior_port()\
+                        .network_address('169.254.255.0')\
+                        .network_length(30)\
+                        .port_address('169.254.255.1')\
+                        .create()
+
+                LOG.debug('pr_port=%r', pr_port)
+
+                # Create a port in the tenant router
+                tr_port = tenant_router.add_interior_port()\
+                                       .network_address('169.254.255.0')\
+                                       .network_length(30)\
+                                       .port_address('169.254.255.2')\
+                                       .create()
+                LOG.debug('tr_port=%r', tr_port)
+
+                # Link them
+                pr_port.link(tr_port.get_id())
+
+                # Add a route for snat_ip to bring it down to tenant
+                self.provider_router.add_route()\
+                                    .type('Normal')\
+                                    .src_network_addr('0.0.0.0')\
+                                    .src_network_length(0)\
+                                    .dst_network_addr(snat_ip)\
+                                    .dst_network_length(32)\
+                                    .weight(100)\
+                                    .next_hop_port(pr_port.get_id())\
+                                    .create()
+
+                # Add default route to uplink in the tenant router
+                tenant_router.add_route().type('Normal')\
+                             .src_network_addr('0.0.0.0')\
+                             .src_network_length(0)\
+                             .dst_network_addr('0.0.0.0')\
+                             .dst_network_length(0)\
+                             .weight(100)\
+                             .next_hop_port(tr_port.get_id())\
+                             .create()
+
+                # ADD SNAT(masquerade) rules
+                chains = self._get_chains(tenant_router.get_tenant_id(),
+                                          tenant_router.get_id())
+
+                chains['in'].add_rule().nw_dst_address(snat_ip)\
+                           .nw_dst_length(32)\
+                           .type('rev_snat')\
+                           .flow_action('accept')\
+                           .in_ports([tr_port.get_id()])\
+                           .properties(SNAT_RULE_PROPERTY)\
+                           .position(1)\
+                           .create()
+
+                nat_targets = []
+                nat_targets.append(
+                    {'addressFrom': snat_ip, 'addressTo': snat_ip,
+                     'portFrom': 1, 'portTo': 65535})
+
+                chains['out'].add_rule().type('snat')\
+                             .flow_action('accept')\
+                             .nat_targets(nat_targets)\
+                             .out_ports([tr_port.get_id()])\
+                             .properties(SNAT_RULE_PROPERTY)\
+                             .position(1)\
+                             .create()
+
+            if op_gateway_clear:
+                # delete the port that is connected to provider router
+                for p in tenant_router.get_ports():
+                    if p.get_port_address() == '169.254.255.2':
+                        peer_port_id = p.get_peer_id()
+                        p.unlink()
+                        self.mido_mgmt.get_port(peer_port_id).delete()
+                        p.delete()
+
+                # delete default route
+                for r in tenant_router.get_routes():
+                    if r.get_dst_network_addr() == '0.0.0.0' and \
+                            r.get_dst_network_length() == 0:
+                        LOG.debug('Deleting default route=%r', r)
+                        r.delete()
+
+                # delete SNAT(masquerade) rules
+                chains = self._get_chains(tenant_router.get_tenant_id(),
+                                          tenant_router.get_id())
+
+                for r in chains['in'].get_rules():
+                    if OS_TENANT_ROUTER_RULE_KEY in r.get_properties():
+                        if r.get_properties()[OS_TENANT_ROUTER_RULE_KEY] == \
+                                SNAT_RULE:
+                            r.delete()
+
+                for r in chains['out'].get_rules():
+                    if OS_TENANT_ROUTER_RULE_KEY in r.get_properties():
+                        if r.get_properties()[OS_TENANT_ROUTER_RULE_KEY] == \
+                                SNAT_RULE:
+                            r.delete()
         return qrouter
 
     def delete_router(self, context, id):
