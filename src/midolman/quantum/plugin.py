@@ -397,9 +397,11 @@ class MidonetPluginV2(db_base_plugin_v2.QuantumDbPluginV2,
             bridge_port = bridge.add_exterior_port().create()
         elif device_owner == l3_db.DEVICE_OWNER_ROUTER_INTF:
             bridge_port = bridge.add_interior_port().create()
-        elif device_owner == l3_db.DEVICE_OWNER_ROUTER_GW:
-            # This is a dummy port to make l3_db happy
-            # will not be used in MidoNet
+        elif device_owner == l3_db.DEVICE_OWNER_ROUTER_GW or \
+                device_owner == l3_db.DEVICE_OWNER_FLOATINGIP:
+
+            # This is a dummy port to make l3_db happy.
+            # This will not be used in MidoNet
             bridge_port = bridge.add_interior_port().create()
 
         if bridge_port:
@@ -817,6 +819,97 @@ class MidonetPluginV2(db_base_plugin_v2.QuantumDbPluginV2,
 
         super(MidonetPluginV2, self).remove_router_interface(context,
                 router_id, interface_info)
+
+    def update_floatingip(self, context, id, floatingip):
+        LOG.debug('context=%r, id=%r, floatingip=%r', context, id, floatingip)
+
+        session = context.session
+        with session.begin(subtransactions=True):
+            if floatingip['floatingip']['port_id']:
+                fip = super(MidonetPluginV2, self).update_floatingip(
+                        context, id, floatingip)
+                router_id = fip['router_id']
+                floating_address = fip['floating_ip_address']
+                fixed_address = fip['fixed_ip_address']
+
+                tenant_router = self.mido_mgmt.get_router(fip['router_id'])
+                # find the provider router port that is connected to the tenant
+                # of the floating ip
+                for p in tenant_router.get_peer_ports():
+                    if p.get_device_id() == self.provider_router.get_id():
+                        pr_port = p
+
+                # add a route for the floating ip to bring it to the tenant
+                self.provider_router.add_route()\
+                                    .type('Normal')\
+                                    .src_network_addr('0.0.0.0')\
+                                    .src_network_length(0)\
+                                    .dst_network_addr(floating_address)\
+                                    .dst_network_length(32)\
+                                    .weight(100)\
+                                    .next_hop_port(pr_port.get_id())\
+                                    .create()
+
+                chains = self._get_chains(fip['tenant_id'], fip['router_id'])
+                # add dnat/snat rule pair for the floating ip
+                nat_targets = []
+                nat_targets.append(
+                    {'addressFrom': fixed_address, 'addressTo': fixed_address,
+                     'portFrom': 0, 'portTo': 0})
+
+                chains['in'].add_rule().nw_dst_address(floating_address)\
+                                       .nw_dst_length(32)\
+                                       .type('dnat')\
+                                       .flow_action('accept')\
+                                       .nat_targets(nat_targets)\
+                                       .position(1)\
+                                       .create()
+
+                nat_targets = []
+                nat_targets.append(
+                    {'addressFrom': floating_address,
+                     'addressTo': floating_address,
+                     'portFrom': 0,
+                     'portTo': 0})
+
+                chains['out'].add_rule().nw_src_address(fixed_address)\
+                                        .nw_src_length(32)\
+                                        .type('snat')\
+                                        .flow_action('accept')\
+                                        .nat_targets(nat_targets)\
+                                        .position(1)\
+                                        .create()
+
+            elif floatingip['floatingip']['port_id'] is None:
+
+                fip = super(MidonetPluginV2, self).get_floatingip(context, id)
+
+                router_id = fip['router_id']
+                floating_address = fip['floating_ip_address']
+                fixed_address = fip['fixed_ip_address']
+
+                # delete the route for this floating ip
+                for r in self.provider_router.get_routes():
+                    if r.get_dst_network_addr() == floating_address and \
+                            r.get_dst_network_length == 32:
+                        r.delete()
+
+                # delete snat/dnat rule pair for this floating ip
+                chains = self._get_chains(fip['tenant_id'], fip['router_id'])
+                for r in chains['in'].get_rules():
+                    if r.get_nw_dst_addr() == floating_address and \
+                            r.get_nw_dst_length == 32:
+                        r.delete()
+
+                for r in chains['out'].get_rules():
+                    if r.get_nw_src_addr() == floating_address and \
+                            r.get_src_dst_length == 32:
+                        r.delete()
+
+                super(MidonetPluginV2, self).update_floatingip(context, id,
+                                                               floatingip)
+
+        return fip
 
     def _get_or_create_provider_router(self):
         """
