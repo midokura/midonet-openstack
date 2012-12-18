@@ -18,19 +18,20 @@
 from nova import context
 from nova import db
 from nova import flags
-from nova.network.quantum.sg import SecurityGroupHandlerBase
+from nova.network.sg import SecurityGroupHandlerBase
 from nova.virt.firewall import FirewallDriver
-from nova import log as logging
+from nova.openstack.common import log as logging
 
-from nova.network.quantum.manager import QuantumManager
-from midolman.nova.network import midonet_connection
+
+from midolman.nova import midonet_connection
 from midolman.common.openstack import ChainManager, PortGroupManager,\
         RuleManager
-from midonet.api import PortType
+import midonet.client.port_type as PortType
 
 
 LOG = logging.getLogger('nova...' + __name__)
 FLAGS = flags.FLAGS
+
 
 class MidonetFirewallDriver(FirewallDriver):
     """Firewall driver to setup security group in MidoNet.
@@ -40,7 +41,7 @@ class MidonetFirewallDriver(FirewallDriver):
 
     def __init__(self, **kwargs):
         LOG.debug('kwargs=%r', kwargs)
-        self.mido_conn = midonet_connection.get_connection()
+        self.mido_conn = midonet_connection.get_mido_mgmt()
         self.chain_manager = ChainManager(self.mido_conn)
         self.rule_manager = RuleManager(self.mido_conn)
 
@@ -106,6 +107,7 @@ class MidonetFirewallDriver(FirewallDriver):
         LOG.debug('instance=%r, network_info=%r', instance, network_info)
         return True
 
+
 class MidonetSecurityGroupHandler(SecurityGroupHandlerBase):
     """ This is security groups handler for MidoNet.
         When security groups and rules are modified, this handler gets
@@ -114,7 +116,7 @@ class MidonetSecurityGroupHandler(SecurityGroupHandlerBase):
 
     def __init__(self):
         LOG.debug('')
-        self.mido_conn = midonet_connection.get_connection()
+        self.mido_conn = midonet_connection.get_mido_mgmt()
         self.chain_manager = ChainManager(self.mido_conn)
         self.pg_manager = PortGroupManager(self.mido_conn)
         self.rule_manager = RuleManager(self.mido_conn)
@@ -125,7 +127,7 @@ class MidonetSecurityGroupHandler(SecurityGroupHandlerBase):
         LOG.debug('group=%r', group)
         ctxt = context.elevated()
         sg_ref = db.security_group_get_by_name(ctxt, group['project_id'],
-                                               group['name'] )
+                                               group['name'])
 
         tenant_id = context.to_dict()['project_id']
         sg_id = sg_ref['id']

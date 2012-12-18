@@ -17,9 +17,10 @@
 
 from nova import context
 from nova import db
-from nova import log as logging
+from nova.openstack.common import log as logging
 
-from midonet.api import PortType
+import midonet.client.port_type as PortType
+
 
 LOG = logging.getLogger('nova...' + __name__)
 
@@ -51,23 +52,22 @@ class ChainManager:
         global PREFIX
         return PREFIX + 'vif_' + vif_uuid + '_' + direction
 
-
     def create_for_sg(self, tenant_id, sg_id, sg_name):
         LOG.debug('tenant_id=%r, sg_id=%r, sg_name=%r', tenant_id, sg_id,
                   sg_name)
 
         cname = chain_name(sg_id, sg_name)
-        response, content = self.mido_conn.chains().create(tenant_id, cname)
+        self.mido_conn.add_chain().tenant_id(tenant_id).name(cname).create()
 
     def delete_for_sg(self, tenant_id, sg_id):
         LOG.debug('tenant_id=%r, sg_id=%r', tenant_id, sg_id)
 
         chain_name_prefix = chain_name(sg_id, '')
-        response, chains = self.mido_conn.chains().list(tenant_id)
+        chains = self.mido_conn.get_chains({'tenant_id': tenant_id})
         for c in chains:
-            if c['name'].startswith(chain_name_prefix):
+            if c.get_name().startswith(chain_name_prefix):
                 LOG.debug('deleting chain=%r', c)
-                response, content = self.mido_conn.delete(c['uri'])
+                c.delete()
 
     def create_for_vif(self, tenant_id, vif_id):
         """Create chains for the vif and returns a dictionary that
@@ -76,20 +76,18 @@ class ChainManager:
         LOG.debug('tenant_id=%r, vif_id=%r', tenant_id, vif_id)
 
         # see if there are already there
-        res, chains = self.mido_conn.chains().list(tenant_id)
+        chains = self.mido_conn.get_chains({'tenant_id': tenant_id})
         for c in chains:
-            if c['name'].startswith(self._chain_name_for_vif(vif_id, '')):
+            if c.get_name().startswith(self._chain_name_for_vif(vif_id, '')):
                 assert False, 'chain for vif should not be there'
 
         # create a inbound chain
-        response, content = self.mido_conn.chains().create(tenant_id,
-                self._chain_name_for_vif(vif_id, 'in'))
-        response, in_chain = self.mido_conn.get(response['location'])
+        in_chain = self.mido_conn.add_chain().tenant_id(tenant_id).name(
+            self._chain_name_for_vif(vif_id, 'in')).create()
 
         # create a outbound chain
-        response, content = self.mido_conn.chains().create(tenant_id,
-                self._chain_name_for_vif(vif_id, 'out'))
-        response, out_chain = self.mido_conn.get(response['location'])
+        out_chain = self.mido_conn.add_chain().tenant_id(tenant_id).name(
+                self._chain_name_for_vif(vif_id, 'out')).create()
 
         return {'in': in_chain, 'out': out_chain}
 
@@ -98,10 +96,11 @@ class ChainManager:
            are cascade deleted.
         """
         LOG.debug('tenant_id=%r, vif_id=%r', tenant_id, vif_id)
-        response, chains = self.mido_conn.chains().list(tenant_id)
+        chains = self.mido_conn.get_chains({'tenant_id': tenant_id})
         for c in chains:
-            if c['name'].startswith(self._chain_name_for_vif(vif_id, '')):
-                response, content = self.mido_conn.delete(c['uri'])
+            if c.get_name().startswith(self._chain_name_for_vif(vif_id, '')):
+                c.delete()
+
 
 class PortGroupManager:
 
@@ -112,18 +111,19 @@ class PortGroupManager:
         LOG.debug('tenant_id=%r, sg_id=%r, sg_name=%r', tenant_id, sg_id,
                   sg_name)
         pg_name = port_group_name(sg_id, sg_name)
-        response, content = self.mido_conn.port_groups().create(tenant_id,
-                                                pg_name)
+        self.mido_conn.add_port_group().tenant_id(tenant_id).name(
+            pg_name).create()
 
     def delete(self, tenant_id, sg_id, sg_name):
         LOG.debug('tenant_id=%r, sg_id=%r, sg_name=%r', tenant_id, sg_id,
                   sg_name)
         pg_name_prefix = port_group_name(sg_id, sg_name)
-        response, pgs = self.mido_conn.port_groups().list(tenant_id)
+        pgs = self.mido_conn.get_port_groups({'tenant_id': tenant_id})
         for pg in pgs:
-            if pg['name'].startswith(pg_name_prefix):
+            if pg.get_name().startswith(pg_name_prefix):
                 LOG.debug('deleting port group=%r', pg)
-                response, content = self.mido_conn.delete(pg['uri'])
+                pg.delete()
+
 
 class RuleManager:
 
@@ -146,14 +146,14 @@ class RuleManager:
         cname = chain_name(sg_id, sg_name)
 
         # search for the chain to put rules
-        response, chains = self.mido_conn.chains().list(tenant_id)
+        chains = self.mido_conn.get_chains({'tenant_id': tenant_id})
         found = False
         for c in chains:
-            if c['name'] == cname:
+            if c.get_name() == cname:
                 sg_chain = c
                 found = True
         assert found
-        LOG.debug('putting a rule to the chain id=%r', sg_chain['id'])
+        LOG.debug('putting a rule to the chain id=%r', sg_chain.get_id())
 
         # construct a corresponding rule
         tp_src_start = tp_src_end = None
@@ -164,18 +164,18 @@ class RuleManager:
 
         # handle source
         if rule['cidr'] != None:
-            nw_src_address, nw_src_length  = rule['cidr'].split('/')
-        else: # security group as a srouce
-            response, port_groups = self.mido_conn.port_groups().list(
-                    tenant_id)
+            nw_src_address, nw_src_length = rule['cidr'].split('/')
+        else:  # security group as a srouce
+            port_groups = self.mido_conn.get_port_groups(
+                {'tenant_id': tenant_id})
             ctxt = context.get_admin_context()
             group = db.security_group_get(ctxt, rule['group_id'])
 
             pg_name = port_group_name(group['id'], group['name'])
             found = False
             for pg in port_groups:
-                if pg['name'] == pg_name:
-                    port_group_id = pg['id']
+                if pg.get_name() == pg_name:
+                    port_group_id = pg.get_id()
                     found = True
             assert found
 
@@ -205,27 +205,25 @@ class RuleManager:
 
         # create an accept rule
         properties = self._properties(rule['id'])
-        response, content = self.mido_conn.rules().create(tenant_id,
-                sg_chain['id'], port_group=port_group_id,
-                type_='accept', nw_proto=nw_proto,
-                nw_src_address=nw_src_address, nw_src_length=nw_src_length,
-                tp_src_start=tp_src_start, tp_src_end=tp_src_end,
-                tp_dst_start=tp_dst_start, tp_dst_end=tp_dst_end,
-                properties=properties)
-
+        chain = self.mido_conn.get_chain(sg_chain.get_id())
+        chain.add_rule().port_group(port_group_id).type('accept').nw_proto(
+                nw_proto).nw_src_address(nw_src_address).nw_src_length(
+                nw_src_length).tp_src_start(tp_src_start).tp_src_end(
+                tp_src_end).tp_dst_start(tp_dst_start).tp_dst_end(
+                tp_dst_end).properties(properties).create()
 
     def delete_for_sg(self, tenant_id, rule_id):
         LOG.debug('tenant_id=%r, rule_id=%r', tenant_id, rule_id)
 
         properties = self._properties(rule_id)
         # search for the chains to find the rule to delete
-        response, chains = self.mido_conn.chains().list(tenant_id)
+        chains = self.mido_conn.get_chains({'tenant_id': tenant_id})
         for c in chains:
-            response, rules = self.mido_conn.get(c['rules'])
+            rules = c.get_rules()
             for r in rules:
-                if r['properties'] == properties:
+                if r.get_properties() == properties:
                     LOG.debug('deleting rule=%r', r)
-                    response, content = self.mido_conn.delete(r['uri'])
+                    r.delete()
 
     def create_for_vif(self, tenant_id, instance, network, vif_chains,
             allow_same_net_traffic):
@@ -243,23 +241,21 @@ class RuleManager:
         #
 
         position = 1
+        in_chain = vif_chains['in']
+        out_chain = vif_chains['out']
         # arp spoofing protection
-        response, content = self.mido_conn.rules().create(tenant_id,
-                vif_chains['in']['id'], type_='drop',
-                dl_src=mac, inv_dl_src=True, position=position)
+        in_chain.add_rule().type('drop').dl_src(mac).inv_dl_src(True).position(
+            position).create()
         position += 1
 
         # ip spoofing protection
-        response, content = self.mido_conn.rules().create(tenant_id,
-                vif_chains['in']['id'], type_='drop',
-                nw_src_address=ip, nw_src_length=32, inv_nw_src=True,
-                dl_type=0x0800, position=position)
+        in_chain.add_rule().type('drop').nw_src_address(ip).nw_src_length(
+            32).inv_nw_src(True).dl_type(0x0800).position(position).create()
         position += 1
 
         # conntrack
-        response, content = self.mido_conn.rules().create(tenant_id,
-                vif_chains['in']['id'], type_='accept',
-                match_forward_flow=True, position=position)
+        in_chain.add_rule().type('accept').match_forward_flow(True).position(
+            position).create()
         position += 1
 
         #
@@ -271,16 +267,14 @@ class RuleManager:
 
         position = 1
         # get the port groups to match for the rule
-        port_group_ids = []
-        response, port_groups = self.mido_conn.port_groups().list(tenant_id)
+        port_groups = self.mido_conn.get_port_groups({'tenant_id': tenant_id})
 
         if allow_same_net_traffic:
             LOG.debug('accept cidr=%r', net_cidr)
-            nw_src_address, nw_src_length  = net_cidr.split('/')
-            response, content = self.mido_conn.rules().create(tenant_id,
-                    vif_chains['out']['id'], type_='accept',
-                    nw_src_address=nw_src_address, nw_src_length=nw_src_length,
-                    position=position)
+            nw_src_address, nw_src_length = net_cidr.split('/')
+            out_chain.add_rule().type('accept').nw_src_address(
+                nw_src_address).nw_src_length(nw_src_length).position(
+                position).create()
             position += 1
 
         # add rules that correspond to Nova SG
@@ -294,55 +288,48 @@ class RuleManager:
             LOG.debug('rules=%r', rules)
 
             cname = chain_name(sg['id'], sg['name'])
-            response, content = self.mido_conn.rules().create(tenant_id,
-                    vif_chains['out']['id'], type_='jump',
-                    jump_chain_name=cname, position=position)
+            chains = self.mido_conn.get_chains({'tenant_id': tenant_id})
+            jump_chain_id = None
+            for c in chains:
+                if c.get_name() == cname:
+                    jump_chain_id = c.get_id()
+                    break
+            assert jump_chain_id != None
+
+            rule = out_chain.add_rule().type('jump').position(
+                position).jump_chain_id(jump_chain_id).jump_chain_name(
+                cname).create()
             position += 1
 
             # Look for the port group that the vif should belong to
             for pg in port_groups:
-                if pg['name'] == cname:
-                    port_group_ids.append(pg['id'])
+                if pg.get_name() != cname:
+                    port_groups.remove(pg)
 
         # add reverse flow matching at the end
-        response, content = self.mido_conn.rules().create(tenant_id,
-                vif_chains['out']['id'], type_='accept', match_return_flow=True,
-                position=position)
+        out_chain.add_rule().type('accept').match_return_flow(True).position(
+            position).create()
         position += 1
 
         # fall back DROP rule at the end except for ARP
-        response, content = self.mido_conn.rules().create(tenant_id,
-                vif_chains['out']['id'], type_='drop', dl_type=0x0806,
-                inv_dl_type=True, position=position)
+        out_chain.add_rule().type('drop').dl_type(0x0806).inv_dl_type(
+            True).position(position).create()
 
         #
         # Updating the vport
         #
-        response, bridge_ports = self.mido_conn.bridge_ports().list(tenant_id,
-                bridge_uuid)
-
-        # Search for the port that has the vif attached
-        found = False
-        for bp in bridge_ports:
-            if bp['type'] != PortType.MATERIALIZED_BRIDGE:
-                continue
-            if bp['vifId'] == vif_uuid:
-                bridge_port = bp
-                found = True
-                break
-        assert found
+        bridge = self.mido_conn.get_bridge(bridge_uuid)
+        bridge_port = self.mido_conn.get_port(vif_uuid)
         LOG.debug('bridge_port=%r found', bridge_port)
 
-        # set filters and port group ids
-        bridge_port['inboundFilterId'] = vif_chains['in']['id']
-        bridge_port['outboundFilterId'] = vif_chains['out']['id']
-        bridge_port['portGroupIDs'] = port_group_ids
-        response, content = self.mido_conn.bridge_ports().update(tenant_id,
-                bridge_uuid, bridge_port['id'], bridge_port)
+        # set filters
+        bridge_port.inbound_filter_id(in_chain.get_id())
+        bridge_port.outbound_filter_id(out_chain.get_id())
+        bridge_port.update()
+        for pg in port_groups:
+            pg.add_port_group_port().port_id(bridge_port.get_id()).create()
 
 
 class RouterName:
     PROVIDER_ROUTER = 'provider_router'
     TENANT_ROUTER = 'os_project_router'
-
-

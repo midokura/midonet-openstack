@@ -25,9 +25,12 @@ from quantum.api.v2 import attributes
 from quantum.common.utils import find_config_file
 from quantum.common import exceptions as q_exc
 
+
 from midonet.client.mgmt import MidonetMgmt
 from midonet.client.web_resource import WebResource
 from midonet.auth.keystone import KeystoneAuth
+from midolman.common.openstack import (RouterName, ChainManager,
+                                       PortGroupManager)
 from webob import exc as w_exc
 
 
@@ -81,6 +84,9 @@ class MidonetPluginV2(db_base_plugin_v2.QuantumDbPluginV2,
         client_logger = logging.getLogger('midonet.client')
         web_resource = WebResource(auth, logger=client_logger)
         self.mido_mgmt = MidonetMgmt(web_resource=web_resource, logger=LOG)
+
+        self.chain_manager = ChainManager(self.mido_mgmt)
+        self.pg_manager = PortGroupManager(self.mido_mgmt)
 
         # get MidoNet provider router
         self.provider_router = self._get_or_create_provider_router()
