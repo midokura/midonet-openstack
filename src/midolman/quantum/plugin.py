@@ -29,7 +29,7 @@ from quantum.common import exceptions as q_exc
 from midonet.client.mgmt import MidonetMgmt
 from midonet.client.web_resource import WebResource
 from midonet.auth.keystone import KeystoneAuth
-from midolman.common.openstack import (RouterName, ChainManager,
+from midolman.common.openstack import (ChainManager,
                                        PortGroupManager)
 from webob import exc as w_exc
 

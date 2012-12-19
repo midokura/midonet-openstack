@@ -328,8 +328,3 @@ class RuleManager:
         bridge_port.update()
         for pg in port_groups:
             pg.add_port_group_port().port_id(bridge_port.get_id()).create()
-
-
-class RouterName:
-    PROVIDER_ROUTER = 'provider_router'
-    TENANT_ROUTER = 'os_project_router'
