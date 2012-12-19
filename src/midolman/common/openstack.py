@@ -82,12 +82,17 @@ class ChainManager:
                 assert False, 'chain for vif should not be there'
 
         # create a inbound chain
-        in_chain = self.mido_conn.add_chain().tenant_id(tenant_id).name(
-            self._chain_name_for_vif(vif_id, 'in')).create()
+        in_chain = self.mido_conn.add_chain()\
+                                 .tenant_id(tenant_id)\
+                                 .name(self._chain_name_for_vif(vif_id, 'in'))\
+                                 .create()
 
         # create a outbound chain
-        out_chain = self.mido_conn.add_chain().tenant_id(tenant_id).name(
-                self._chain_name_for_vif(vif_id, 'out')).create()
+        out_chain = self.mido_conn\
+                .add_chain()\
+                .tenant_id(tenant_id)\
+                .name(self._chain_name_for_vif(vif_id, 'out'))\
+                .create()
 
         return {'in': in_chain, 'out': out_chain}
 
@@ -206,11 +211,17 @@ class RuleManager:
         # create an accept rule
         properties = self._properties(rule['id'])
         chain = self.mido_conn.get_chain(sg_chain.get_id())
-        chain.add_rule().port_group(port_group_id).type('accept').nw_proto(
-                nw_proto).nw_src_address(nw_src_address).nw_src_length(
-                nw_src_length).tp_src_start(tp_src_start).tp_src_end(
-                tp_src_end).tp_dst_start(tp_dst_start).tp_dst_end(
-                tp_dst_end).properties(properties).create()
+        chain.add_rule().port_group(port_group_id)\
+                        .type('accept')\
+                        .nw_proto(nw_proto)\
+                        .nw_src_address(nw_src_address)\
+                        .nw_src_length(nw_src_length)\
+                        .tp_src_start(tp_src_start)\
+                        .tp_src_end(tp_src_end)\
+                        .tp_dst_start(tp_dst_start)\
+                        .tp_dst_end(tp_dst_end)\
+                        .properties(properties)\
+                        .create()
 
     def delete_for_sg(self, tenant_id, rule_id):
         LOG.debug('tenant_id=%r, rule_id=%r', tenant_id, rule_id)
@@ -244,18 +255,28 @@ class RuleManager:
         in_chain = vif_chains['in']
         out_chain = vif_chains['out']
         # arp spoofing protection
-        in_chain.add_rule().type('drop').dl_src(mac).inv_dl_src(True).position(
-            position).create()
+        in_chain.add_rule().type('drop')\
+                           .dl_src(mac)\
+                           .inv_dl_src(True)\
+                           .position(position)\
+                           .create()
         position += 1
 
         # ip spoofing protection
-        in_chain.add_rule().type('drop').nw_src_address(ip).nw_src_length(
-            32).inv_nw_src(True).dl_type(0x0800).position(position).create()
+        in_chain.add_rule().type('drop')\
+                           .nw_src_address(ip)\
+                           .nw_src_length(32)\
+                           .inv_nw_src(True)\
+                           .dl_type(0x0800)\
+                           .position(position)\
+                           .create()
         position += 1
 
         # conntrack
-        in_chain.add_rule().type('accept').match_forward_flow(True).position(
-            position).create()
+        in_chain.add_rule().type('accept')\
+                           .match_forward_flow(True)\
+                           .position(position)\
+                           .create()
         position += 1
 
         #
@@ -272,9 +293,11 @@ class RuleManager:
         if allow_same_net_traffic:
             LOG.debug('accept cidr=%r', net_cidr)
             nw_src_address, nw_src_length = net_cidr.split('/')
-            out_chain.add_rule().type('accept').nw_src_address(
-                nw_src_address).nw_src_length(nw_src_length).position(
-                position).create()
+            out_chain.add_rule().type('accept')\
+                                .nw_src_address(nw_src_address)\
+                                .nw_src_length(nw_src_length)\
+                                .position(position)\
+                                .create()
             position += 1
 
         # add rules that correspond to Nova SG
@@ -296,9 +319,11 @@ class RuleManager:
                     break
             assert jump_chain_id != None
 
-            rule = out_chain.add_rule().type('jump').position(
-                position).jump_chain_id(jump_chain_id).jump_chain_name(
-                cname).create()
+            rule = out_chain.add_rule().type('jump')\
+                                       .position(position)\
+                                       .jump_chain_id(jump_chain_id)\
+                                       .jump_chain_name(cname)\
+                                       .create()
             position += 1
 
             # Look for the port group that the vif should belong to
@@ -307,13 +332,18 @@ class RuleManager:
                     port_groups.remove(pg)
 
         # add reverse flow matching at the end
-        out_chain.add_rule().type('accept').match_return_flow(True).position(
-            position).create()
+        out_chain.add_rule().type('accept')\
+                            .match_return_flow(True)\
+                            .position(position)\
+                            .create()
         position += 1
 
         # fall back DROP rule at the end except for ARP
-        out_chain.add_rule().type('drop').dl_type(0x0806).inv_dl_type(
-            True).position(position).create()
+        out_chain.add_rule().type('drop')\
+                            .dl_type(0x0806)\
+                            .inv_dl_type(True)\
+                            .position(position)\
+                            .create()
 
         #
         # Updating the vport
