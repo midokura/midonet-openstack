@@ -18,4 +18,5 @@ Vcs-Browser: https://github.com/midokura/midonet-openstack
 Package: python-midonet-openstack
 Architecture: all
 Depends: ${misc:Depends}, ${python:Depends}, python-midonet-client
+Conflicts: nova-api (>= 2012.2), nova-compute (>= 2012.2), quantum-server (>= 2012.2)
 Description: OpenStack plugin for MidoNet.
