@@ -242,7 +242,7 @@ class RuleManager:
         position = 1
         in_chain = vif_chains['in']
         out_chain = vif_chains['out']
-        # arp spoofing protection
+        # mac spoofing protection
         in_chain.add_rule().type('drop').dl_src(mac).inv_dl_src(True).position(
             position).create()
         position += 1
