@@ -18,6 +18,4 @@ Vcs-Browser: https://github.com/midokura/midonet-openstack
 Package: python-midonet-openstack
 Architecture: all
 Depends: ${misc:Depends}, ${python:Depends}, python-midonet-client
-Description: OpenStack plugin for Midolman.
- Midolman implements OpenStack Nova's network API to serve as its network
- service provider.
+Description: OpenStack plugin for MidoNet.
