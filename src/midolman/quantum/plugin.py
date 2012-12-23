@@ -903,12 +903,12 @@ class MidonetPluginV2(db_base_plugin_v2.QuantumDbPluginV2,
                 # delete snat/dnat rule pair for this floating ip
                 chains = self._get_chains(fip['tenant_id'], fip['router_id'])
                 for r in chains['in'].get_rules():
-                    if r.get_nw_dst_addr() == floating_address and \
+                    if r.get_nw_dst_address() == floating_address and \
                             r.get_nw_dst_length == 32:
                         r.delete()
 
                 for r in chains['out'].get_rules():
-                    if r.get_nw_src_addr() == floating_address and \
+                    if r.get_nw_src_address() == floating_address and \
                             r.get_src_dst_length == 32:
                         r.delete()
 
