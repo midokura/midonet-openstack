@@ -886,6 +886,7 @@ class MidonetPluginV2(db_base_plugin_v2.QuantumDbPluginV2,
                                         .position(1)\
                                         .create()
 
+            # disassociate floating IP
             elif floatingip['floatingip']['port_id'] is None:
 
                 fip = super(MidonetPluginV2, self).get_floatingip(context, id)
@@ -897,19 +898,25 @@ class MidonetPluginV2(db_base_plugin_v2.QuantumDbPluginV2,
                 # delete the route for this floating ip
                 for r in self.provider_router.get_routes():
                     if r.get_dst_network_addr() == floating_address and \
-                            r.get_dst_network_length == 32:
+                            r.get_dst_network_length() == 32:
                         r.delete()
 
                 # delete snat/dnat rule pair for this floating ip
                 chains = self._get_chains(fip['tenant_id'], fip['router_id'])
+                LOG.debug('chains=%r', chains)
+
                 for r in chains['in'].get_rules():
+                    LOG.debug('in rule=%r', r)
                     if r.get_nw_dst_address() == floating_address and \
-                            r.get_nw_dst_length == 32:
+                            r.get_nw_dst_length() == 32:
+                        LOG.debug('deleting rule=%r', r)
                         r.delete()
 
                 for r in chains['out'].get_rules():
-                    if r.get_nw_src_address() == floating_address and \
-                            r.get_src_dst_length == 32:
+                    LOG.debug('out rule=%r', r)
+                    if r.get_nw_src_address() == fixed_address and \
+                            r.get_nw_src_length() == 32:
+                        LOG.debug('deleting rule=%r', r)
                         r.delete()
 
                 super(MidonetPluginV2, self).update_floatingip(context, id,
