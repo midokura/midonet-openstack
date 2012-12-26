@@ -29,8 +29,7 @@ from quantum.common import exceptions as q_exc
 from midonet.client.mgmt import MidonetMgmt
 from midonet.client.web_resource import WebResource
 from midonet.auth.keystone import KeystoneAuth
-from midolman.common.openstack import (ChainManager,
-                                       PortGroupManager)
+from midolman.common.openstack import ChainManager, PortGroupManager
 from webob import exc as w_exc
 
 
@@ -41,6 +40,7 @@ OS_ROUTER_IN_CHAIN_NAME_FORMAT = 'OS_IN_%s'
 OS_ROUTER_OUT_CHAIN_NAME_FORMAT = 'OS_OUT_%s'
 
 OS_TENANT_ROUTER_RULE_KEY = 'OS_TENANT_ROUTER_RULE'
+OS_FLOATING_IP_RULE_KEY = 'OS_FLOATING_IP'
 SNAT_RULE = 'SNAT'
 SNAT_RULE_PROPERTY = {OS_TENANT_ROUTER_RULE_KEY: SNAT_RULE}
 
@@ -863,12 +863,14 @@ class MidonetPluginV2(db_base_plugin_v2.QuantumDbPluginV2,
                     {'addressFrom': fixed_address, 'addressTo': fixed_address,
                      'portFrom': 0, 'portTo': 0})
 
+                floating_property = {OS_FLOATING_IP_RULE_KEY: id}
                 chains['in'].add_rule().nw_dst_address(floating_address)\
                                        .nw_dst_length(32)\
                                        .type('dnat')\
                                        .flow_action('accept')\
                                        .nat_targets(nat_targets)\
                                        .position(1)\
+                                       .properties(floating_property)\
                                        .create()
 
                 nat_targets = []
@@ -884,6 +886,7 @@ class MidonetPluginV2(db_base_plugin_v2.QuantumDbPluginV2,
                                         .flow_action('accept')\
                                         .nat_targets(nat_targets)\
                                         .position(1)\
+                                        .properties(floating_property)\
                                         .create()
 
             # disassociate floating IP
@@ -906,18 +909,18 @@ class MidonetPluginV2(db_base_plugin_v2.QuantumDbPluginV2,
                 LOG.debug('chains=%r', chains)
 
                 for r in chains['in'].get_rules():
-                    LOG.debug('in rule=%r', r)
-                    if r.get_nw_dst_address() == floating_address and \
-                            r.get_nw_dst_length() == 32:
-                        LOG.debug('deleting rule=%r', r)
-                        r.delete()
+                    if OS_FLOATING_IP_RULE_KEY in r.get_properties():
+                        if r.get_properties()[OS_FLOATING_IP_RULE_KEY] == id:
+                            LOG.debug('deleting rule=%r', r)
+                            r.delete()
+                            break
 
                 for r in chains['out'].get_rules():
-                    LOG.debug('out rule=%r', r)
-                    if r.get_nw_src_address() == fixed_address and \
-                            r.get_nw_src_length() == 32:
-                        LOG.debug('deleting rule=%r', r)
-                        r.delete()
+                    if OS_FLOATING_IP_RULE_KEY in r.get_properties():
+                        if r.get_properties()[OS_FLOATING_IP_RULE_KEY] == id:
+                            LOG.debug('deleting rule=%r', r)
+                            r.delete()
+                            break
 
                 super(MidonetPluginV2, self).update_floatingip(context, id,
                                                                floatingip)
