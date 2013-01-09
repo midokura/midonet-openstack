@@ -364,6 +364,8 @@ class MidonetPluginV2(db_base_plugin_v2.QuantumDbPluginV2,
                 raise MidonetResourceNotFound(resource_type='Bridge',
                                               id=n['id'])
             self._extend_network_dict_l3(context, n)
+
+        qnets = self._filter_nets_l3(context, qnets, filters)
         return [self._fields(net, fields) for net in qnets]
 
     def delete_network(self, context, id):
