@@ -79,11 +79,14 @@ class MidonetPluginV2(db_base_plugin_v2.QuantumDbPluginV2,
 
         self.provider_router_name = config.get('midonet',
                                                 'provider_router_name')
+        if config.get('midonet', 'midonet_uri'):
+            midonet_uri = config.get('midonet', 'midonet_uri')
 
         # Create MidoNet Management API wrapper object.
         client_logger = logging.getLogger('midonet.client')
         web_resource = WebResource(auth, logger=client_logger)
-        self.mido_mgmt = MidonetMgmt(web_resource=web_resource, logger=LOG)
+        self.mido_mgmt = MidonetMgmt(midonet_uri=midonet_uri,
+                                     web_resource=web_resource, logger=LOG)
 
         self.chain_manager = ChainManager(self.mido_mgmt)
         self.pg_manager = PortGroupManager(self.mido_mgmt)
