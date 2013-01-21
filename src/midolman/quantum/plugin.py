@@ -79,6 +79,11 @@ class MidonetPluginV2(db_base_plugin_v2.QuantumDbPluginV2,
 
         self.provider_router_name = config.get('midonet',
                                                 'provider_router_name')
+        self.metadata_router_name = config.get('midonet',
+                                               'metadata_router_name')
+        self.metadata_bridge_name = config.get('midonet',
+                                               'metadata_bridge_name')
+
         if config.get('midonet', 'midonet_uri'):
             midonet_uri = config.get('midonet', 'midonet_uri')
 
@@ -92,7 +97,13 @@ class MidonetPluginV2(db_base_plugin_v2.QuantumDbPluginV2,
         self.pg_manager = PortGroupManager(self.mido_mgmt)
 
         # get MidoNet provider router
+        self.provider_owned_routers = None
         self.provider_router = self._get_or_create_provider_router()
+
+        # ensure metadata devices
+        self.metadata_router = None
+        self.metadata_bridge = None
+        self._ensure_metadata_devices()
 
         # Create sql connection
         sql_connection = config.get('mysql', 'sql_connection')
@@ -932,6 +943,14 @@ class MidonetPluginV2(db_base_plugin_v2.QuantumDbPluginV2,
 
         return fip
 
+    def _get_provider_owned_rouetrs(self):
+        """Returns routers owned by provider"""
+
+        if not self.provider_owned_routers:
+            self.provider_owned_routers = self.mido_mgmt.get_routers(
+                {'tenant_id': self.provider_tenant_id})
+        return self.provider_owned_routers
+
     def _get_or_create_provider_router(self):
         """
         Get the provider router object, searching by name configured in the
@@ -939,10 +958,7 @@ class MidonetPluginV2(db_base_plugin_v2.QuantumDbPluginV2,
         If not found, it'll create one.
         """
 
-        routers = self.mido_mgmt.get_routers(
-            {'tenant_id': self.provider_tenant_id})
-
-        for r in routers:
+        for r in self._get_provider_owned_rouetrs():
             if r.get_name() == self.provider_router_name:
                 return r
 
@@ -950,6 +966,70 @@ class MidonetPluginV2(db_base_plugin_v2.QuantumDbPluginV2,
                              .tenant_id(self.provider_tenant_id)\
                              .name(self.provider_router_name)\
                              .create()
+
+    def _ensure_metadata_devices(self):
+        """When quantum-server runs for the first time,
+        it creates metadata router, bridge, link between them,
+        and a exterior bridge port.
+
+        If they are already set up, store the references to the
+        instance variables.
+        """
+
+        #
+        # MDR
+        #
+        found = False
+        for r in self._get_provider_owned_rouetrs():
+            if r.get_name() == self.metadata_router_name:
+                self.metadata_router = r
+                found = True
+
+        if not found:
+            # create MDR and an interior port.
+            self.metadata_router = self.mido_mgmt.add_router()\
+                                       .tenant_id(self.provider_tenant_id)\
+                                       .name(self.metadata_router_name)\
+                                       .create()
+
+            mdr_port = self.metadata_router.add_interior_port()\
+                                           .port_address('169.254.169.253')\
+                                           .network_address('169.254.0.0')\
+                                           .network_length(16)\
+                                           .create()
+
+            self.metadata_router.add_route().type('Normal')\
+                                .src_network_addr('0.0.0.0')\
+                                .src_network_length(0)\
+                                .dst_network_addr('169.254.169.254')\
+                                .dst_network_length(32)\
+                                .weight(100)\
+                                .next_hop_port(mdr_port.get_id())\
+                                .create()
+
+        #
+        # MDB
+        #
+        found = False
+        for b in self.mido_mgmt.get_bridges(
+            {'tenant_id': self.provider_tenant_id}):
+
+            if b.get_name() == self.metadata_bridge_name:
+                self.metadata_bridge = b
+                found = True
+
+        if not found:
+            # create MDB and an interior port on it, then link it to MDR
+            self.metadata_bridge = self.mido_mgmt.add_bridge()\
+                                       .tenant_id(self.provider_tenant_id)\
+                                       .name(self.metadata_bridge_name)\
+                                       .create()
+
+            mdb_port = self.metadata_bridge.add_interior_port().create()
+            mdb_port.link(mdr_port.get_id())
+
+            # create a exterior port on MDB
+            self.metadata_bridge.add_exterior_port().create()
 
     # TODO: factor out to common.openstack.ChainManager.
     def _get_chains(self, tenant_id, router_id):
