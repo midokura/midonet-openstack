@@ -27,6 +27,8 @@ LOG = logging.getLogger('nova...' + __name__)
 PREFIX = 'os_sg_'
 SUFFIX_IN = '_in'
 SUFFIX_OUT = '_out'
+OS_ROUTER_IN_CHAIN_NAME_FORMAT = 'OS_IN_%s'
+OS_ROUTER_OUT_CHAIN_NAME_FORMAT = 'OS_OUT_%s'
 
 
 def sg_label(sg_id, sg_name):
@@ -105,6 +107,47 @@ class ChainManager:
         for c in chains:
             if c.get_name().startswith(self._chain_name_for_vif(vif_id, '')):
                 c.delete()
+
+    def get_router_chains(self, tenant_id, router_id):
+        """
+        Returns a dictionary that has in/out chain resources key'ed with 'in'
+        and 'out' respectively, given the tenant_id and the router_id passed
+        in in the arguments.
+        """
+
+        router_chain_names = self._get_router_chain_names(router_id)
+        chains = {}
+        for c in  self.mido_conn.get_chains({'tenant_id': tenant_id}):
+            if c.get_name() == router_chain_names['in']:
+                chains['in'] = c
+            elif c.get_name() == router_chain_names['out']:
+                chains['out'] = c
+        return chains
+
+    def create_router_chains(self, tenant_id, router_id):
+        """
+        Creates chains for the router and returns the same dictionary as
+        get_router_chains() returns.
+        """
+        chains = {}
+        router_chain_names = self._get_router_chain_names(router_id)
+        chains['in'] = self.mido_conn.add_chain()\
+                           .tenant_id(tenant_id)\
+                           .name(router_chain_names['in'])\
+                           .create()
+
+        chains['out'] = self.mido_conn.add_chain()\
+                            .tenant_id(tenant_id)\
+                            .name(router_chain_names['out'])\
+                            .create()
+        return chains
+
+    def _get_router_chain_names(self, router_id):
+
+        in_name = OS_ROUTER_IN_CHAIN_NAME_FORMAT % router_id
+        out_name = OS_ROUTER_OUT_CHAIN_NAME_FORMAT % router_id
+        router_chain_names = {'in': in_name, 'out': out_name}
+        return router_chain_names
 
 
 class PortGroupManager:

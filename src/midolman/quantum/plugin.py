@@ -35,9 +35,6 @@ from webob import exc as w_exc
 
 LOG = logging.getLogger('MidonetPluginV2')
 LOG.setLevel(logging.DEBUG)
-#TODO: Make it configurable
-OS_ROUTER_IN_CHAIN_NAME_FORMAT = 'OS_IN_%s'
-OS_ROUTER_OUT_CHAIN_NAME_FORMAT = 'OS_OUT_%s'
 
 OS_TENANT_ROUTER_RULE_KEY = 'OS_TENANT_ROUTER_RULE'
 OS_FLOATING_IP_RULE_KEY = 'OS_FLOATING_IP'
@@ -545,21 +542,12 @@ class MidonetPluginV2(db_base_plugin_v2.QuantumDbPluginV2,
             qrouter = super(MidonetPluginV2, self).create_router(context,
                                                                  router)
 
-            in_name = OS_ROUTER_IN_CHAIN_NAME_FORMAT % mrouter.get_id()
-            out_name = OS_ROUTER_OUT_CHAIN_NAME_FORMAT % mrouter.get_id()
-            in_chain = self.mido_mgmt.add_chain()\
-                                     .tenant_id(tenant_id)\
-                                     .name(in_name)\
-                                     .create()
-
-            out_chain = self.mido_mgmt.add_chain()\
-                                      .tenant_id(tenant_id)\
-                                      .name(out_name)\
-                                      .create()
+            chains = self.chain_manager.create_router_chains(tenant_id,
+                                                             mrouter.get_id())
 
             # set chains to in/out filters
-            mrouter.inbound_filter_id(in_chain.get_id())\
-                   .outbound_filter_id(out_chain.get_id())\
+            mrouter.inbound_filter_id(chains['in'].get_id())\
+                   .outbound_filter_id(chains['out'].get_id())\
                    .update()
 
             # get entry from the DB and update 'id' with MidoNet router id.
@@ -661,8 +649,9 @@ class MidonetPluginV2(db_base_plugin_v2.QuantumDbPluginV2,
                              .create()
 
                 # ADD SNAT(masquerade) rules
-                chains = self._get_chains(tenant_router.get_tenant_id(),
-                                          tenant_router.get_id())
+                chains = self.chain_manager.get_router_chains(
+                        tenant_router.get_tenant_id(),
+                        tenant_router.get_id())
 
                 chains['in'].add_rule().nw_dst_address(snat_ip)\
                            .nw_dst_length(32)\
@@ -703,8 +692,9 @@ class MidonetPluginV2(db_base_plugin_v2.QuantumDbPluginV2,
                         r.delete()
 
                 # delete SNAT(masquerade) rules
-                chains = self._get_chains(tenant_router.get_tenant_id(),
-                                          tenant_router.get_id())
+                chains = self.chain_manager.get_router_chains(
+                        tenant_router.get_tenant_id(),
+                        tenant_router.get_id())
 
                 for r in chains['in'].get_rules():
                     if OS_TENANT_ROUTER_RULE_KEY in r.get_properties():
@@ -727,7 +717,8 @@ class MidonetPluginV2(db_base_plugin_v2.QuantumDbPluginV2,
         mrouter.delete()
 
         # delete corresponding chains
-        chains = self._get_chains(tenant_id, mrouter.get_id())
+        chains = self.chain_manager.get_router_chains(tenant_id,
+                                                      mrouter.get_id())
         chains['in'].delete()
         chains['out'].delete()
 
@@ -872,7 +863,8 @@ class MidonetPluginV2(db_base_plugin_v2.QuantumDbPluginV2,
                                     .next_hop_port(pr_port.get_id())\
                                     .create()
 
-                chains = self._get_chains(fip['tenant_id'], fip['router_id'])
+                chains = self.chain_manager.get_router_chains(fip['tenant_id'],
+                                                              fip['router_id'])
                 # add dnat/snat rule pair for the floating ip
                 nat_targets = []
                 nat_targets.append(
@@ -921,7 +913,8 @@ class MidonetPluginV2(db_base_plugin_v2.QuantumDbPluginV2,
                         r.delete()
 
                 # delete snat/dnat rule pair for this floating ip
-                chains = self._get_chains(fip['tenant_id'], fip['router_id'])
+                chains = self.chain_manager.get_router_chains(fip['tenant_id'],
+                                                              fip['router_id'])
                 LOG.debug('chains=%r', chains)
 
                 for r in chains['in'].get_rules():
@@ -1030,21 +1023,3 @@ class MidonetPluginV2(db_base_plugin_v2.QuantumDbPluginV2,
 
             # create a exterior port on MDB
             self.metadata_bridge.add_exterior_port().create()
-
-    # TODO: factor out to common.openstack.ChainManager.
-    def _get_chains(self, tenant_id, router_id):
-        """
-        Returns a dictionary that has in/out chain resources key'ed
-        by 'in' and 'out' respectively, given tenant_id and router id.
-        """
-
-        in_name = OS_ROUTER_IN_CHAIN_NAME_FORMAT % router_id
-        out_name = OS_ROUTER_OUT_CHAIN_NAME_FORMAT % router_id
-
-        chains = {}
-        for c in  self.mido_mgmt.get_chains({'tenant_id': tenant_id}):
-            if c.get_name() == in_name:
-                chains['in'] = c
-            elif c.get_name() == out_name:
-                chains['out'] = c
-        return chains
