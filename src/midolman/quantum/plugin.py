@@ -740,13 +740,24 @@ class MidonetPluginV2(db_base_plugin_v2.QuantumDbPluginV2,
 
         mrouter = self.mido_mgmt.get_router(id)
         tenant_id = mrouter.get_tenant_id()
-        mrouter.delete()
+
+        # unlink from metadata router and delete the interior ports
+        # that connect metadata router and this router.
+        for pp in self.metadata_router.get_peer_ports():
+            if pp.get_device_id() == mrouter.get_id():
+                mdr_port = self.mido_mgmt.get_port(pp.get_peer_id())
+                pp.unlink()
+                pp.delete()
+                mdr_port.delete()
 
         # delete corresponding chains
         chains = self.chain_manager.get_router_chains(tenant_id,
                                                       mrouter.get_id())
         chains['in'].delete()
         chains['out'].delete()
+
+        # delete the router
+        mrouter.delete()
 
         result = super(MidonetPluginV2, self).delete_router(context, id)
         return result
