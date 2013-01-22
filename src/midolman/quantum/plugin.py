@@ -991,6 +991,7 @@ class MidonetPluginV2(db_base_plugin_v2.QuantumDbPluginV2,
                                            .network_length(16)\
                                            .create()
 
+            # Add a route to metadata server
             self.metadata_router.add_route().type('Normal')\
                                 .src_network_addr('0.0.0.0')\
                                 .src_network_length(0)\
@@ -999,6 +1000,44 @@ class MidonetPluginV2(db_base_plugin_v2.QuantumDbPluginV2,
                                 .weight(100)\
                                 .next_hop_port(mdr_port.get_id())\
                                 .create()
+
+            # Create chains for metadata router
+            chains = self.chain_manager.create_router_chains(
+                    self.provider_tenant_id,
+                    self.metadata_router.get_id())
+
+            # set chains to in/out filters
+            self.metadata_router.inbound_filter_id(chains['in'].get_id())\
+                                .outbound_filter_id(chains['out'].get_id())\
+                                .update()
+
+            # add port translation rules for tcp port 80 <-> 8775
+            nat_targets = []
+            nat_targets.append(
+                {'addressFrom': '169.254.169.254',
+                 'addressTo': '169.254.169.254',
+                 'portFrom': 8775,
+                 'portTo': 8775
+                 })
+
+            chains['in'].add_rule().nw_dst_address('169.254.169.254')\
+                                   .nw_dst_length(32)\
+                                   .tp_dst_start(80)\
+                                   .tp_dst_end(80)\
+                                   .type('dnat')\
+                                   .flow_action('accept')\
+                                   .nat_targets(nat_targets)\
+                                   .position(1)\
+                                   .create()
+
+            chains['out'].add_rule().nw_src_address('169.254.169.254')\
+                                    .nw_src_length(32)\
+                                    .tp_src_start(8775)\
+                                    .tp_src_end(8775)\
+                                    .type('rev_dnat')\
+                                    .flow_action('accept')\
+                                    .position(1)\
+                                    .create()
 
         #
         # MDB
