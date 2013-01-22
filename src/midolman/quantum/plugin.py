@@ -819,6 +819,24 @@ class MidonetPluginV2(db_base_plugin_v2.QuantumDbPluginV2,
                                .weight(100)\
                                .next_hop_port(mrouter_port.get_id())\
                                .create()
+
+            # add a route for the subnet in metadata router; forward
+            # packets destined to the subnet to the tenant router
+            found = False
+            for pp in self.metadata_router.get_peer_ports():
+                if pp.get_device_id() == mrouter.get_id():
+                    mdr_port_id = pp.get_peer_id()
+                    found = True
+            assert found
+
+            self.metadata_router.add_route().type('Normal')\
+                                .src_network_addr('0.0.0.0')\
+                                .src_network_length(0)\
+                                .dst_network_addr(network_address)\
+                                .dst_network_length(length)\
+                                .weight(100)\
+                                .next_hop_port(mdr_port_id)\
+                                .create()
         return qport
 
     def remove_router_interface(self, context, router_id, interface_info):
@@ -837,6 +855,8 @@ class MidonetPluginV2(db_base_plugin_v2.QuantumDbPluginV2,
             subnet_id = interface_info['subnet_id']
             subnet = self._get_subnet(context, subnet_id)
             network_id = subnet['network_id']
+            network_addr, network_length = subnet['cidr'].split('/')
+            network_length = int(network_length)
 
             # find a quantum port for the network
             rport_qry = context.session.query(models_v2.Port)
@@ -857,7 +877,7 @@ class MidonetPluginV2(db_base_plugin_v2.QuantumDbPluginV2,
             mrouter_port = self.mido_mgmt.get_port(mbridge_port.get_peer_id())
             mrouter_port.unlink()
 
-            # Delete the route going to the bridge that has the subnet.
+            # Delete the route for the subnet.
             found = False
             for r in mrouter.get_routes():
                 if r.get_next_hop_port() == mrouter_port.get_id():
@@ -865,6 +885,17 @@ class MidonetPluginV2(db_base_plugin_v2.QuantumDbPluginV2,
                     r.delete()
                     found = True
                     #break   # commented out due to issue#314
+            assert found
+
+            # delete the route for the subnet in the metadata router
+            found = False
+            for r in self.metadata_router.get_routes():
+                if r.get_dst_network_addr() == network_addr and \
+                        r.get_dst_network_length() == network_length:
+                    LOG.debug('Deleting route=%r ...', r)
+                    r.delete()
+                    found = True
+                    break
             assert found
 
         super(MidonetPluginV2, self).remove_router_interface(context,
