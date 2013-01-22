@@ -554,6 +554,21 @@ class MidonetPluginV2(db_base_plugin_v2.QuantumDbPluginV2,
             qrouter_entry = self._get_router(context, qrouter['id'])
             qrouter['id'] = mrouter.get_id()
             qrouter_entry.update(qrouter)
+
+            # link to metadata router
+            mdr_port = self.metadata_router\
+                           .add_interior_port()\
+                           .network_address('169.254.255.0')\
+                           .network_length(30)\
+                           .port_address('169.254.255.1')\
+                           .create()
+
+            tr_port = mrouter.add_interior_port()\
+                             .network_address('169.254.255.0')\
+                             .network_length(30)\
+                             .port_address('169.254.255.2')\
+                             .create()
+            mdr_port.link(tr_port.get_id())
             return qrouter
 
     def update_router(self, context, id, router):
