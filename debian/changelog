@@ -1,3 +1,9 @@
+midonet-openstack (13.01.0) precise; urgency=low
+
+  * Caddo + Folsom release.
+
+ -- Tomoe Sugihara <tomoe@midokura.com>  Tue, 29 Jan 2013 07:31:26 +0900
+
 midonet-openstack (12.06.0) quantal; urgency=low
 
   * Official Babuza release.
