@@ -920,6 +920,9 @@ class MidonetPluginV2(db_base_plugin_v2.QuantumDbPluginV2,
                     if p.get_device_id() == self.provider_router.get_id():
                         pr_port = p
 
+                # get the tenant router port id connected to provider router
+                tr_port_id = pr_port.get_peer_id()
+
                 # add a route for the floating ip to bring it to the tenant
                 self.provider_router.add_route()\
                                     .type('Normal')\
@@ -945,6 +948,7 @@ class MidonetPluginV2(db_base_plugin_v2.QuantumDbPluginV2,
                                        .type('dnat')\
                                        .flow_action('accept')\
                                        .nat_targets(nat_targets)\
+                                       .in_ports([tr_port_id])\
                                        .position(1)\
                                        .properties(floating_property)\
                                        .create()
@@ -961,6 +965,7 @@ class MidonetPluginV2(db_base_plugin_v2.QuantumDbPluginV2,
                                         .type('snat')\
                                         .flow_action('accept')\
                                         .nat_targets(nat_targets)\
+                                        .out_ports([tr_port_id])\
                                         .position(1)\
                                         .properties(floating_property)\
                                         .create()
