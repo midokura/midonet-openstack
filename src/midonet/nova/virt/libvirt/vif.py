@@ -16,17 +16,17 @@
 
 """MidoNet VIF driver for Libvirt."""
 
-from nova import flags
+from webob import exc as w_exc
+
 from nova import utils
 from nova.openstack.common import cfg
 from nova.openstack.common import log as logging
-from nova.virt import vif
-from nova.virt.libvirt import config
-from nova.virt.libvirt.vif import FLAGS as vif_flags
-from webob import exc as w_exc
+from nova.virt.libvirt import config as vconfig
+from nova.virt.libvirt import vif
 
-from midolman.nova.midonet_connection import get_mido_mgmt
+from midonet.nova import midonet_connection
 
+# Prepend 'nova' so Nova's logger handles.
 LOG = logging.getLogger('nova...' + __name__)
 
 midonet_vif_driver_opts = [
@@ -35,14 +35,39 @@ midonet_vif_driver_opts = [
                help='path to midonet host uuid file'),
     ]
 
-FLAGS = flags.FLAGS
-FLAGS.register_opts(midonet_vif_driver_opts)
+CONF = cfg.CONF
+CONF.register_opts(midonet_vif_driver_opts)
 
 
-class MidonetVifDriver(vif.VIFDriver):
+class MidonetVifDriver(vif.LibvirtBaseVIFDriver):
 
     def __init__(self, **kwargs):
-        self.mido_mgmt = get_mido_mgmt()
+        self.mido_api = midonet_connection.get_mido_api()
+
+    def get_config(self, instance, network, mapping):
+
+        vport_id = mapping['vif_uuid']
+        host_dev_name = self._get_dev_name(instance['uuid'], vport_id)
+
+        # create vif (tap for kvm/qemu, veth for lxc) if not found
+        create_device = True
+        if self._device_exists(host_dev_name):
+            create_device = False
+        host_dev_name, peer_dev_name = self._create_vif(
+            instance['uuid'], mapping, create_device)
+
+        # construct data for libvirt xml and return it.
+        conf = vconfig.LibvirtConfigGuestInterface()
+        if CONF.libvirt_use_virtio_for_bridges:
+            conf.model = 'virtio'
+        conf.net_type = 'ethernet'
+        if CONF.libvirt_type == 'kvm' or CONF.libvirt_type == 'qemu':
+            conf.target_dev = host_dev_name
+        elif CONF.libvirt_type == 'lxc':
+            conf.target_dev = peer_dev_name
+        conf.script = ''
+        conf.mac_addr = mapping['mac']
+        return conf
 
     def _get_dev_name(self, instance_uuid, vport_id):
         """Returns tap device name, which includes instance id and vport id."""
@@ -53,8 +78,7 @@ class MidonetVifDriver(vif.VIFDriver):
         """
         Get MidoNet host id from host_uuid.properties file.
         """
-
-        f = open(FLAGS.midonet_host_uuid_path)
+        f = open(CONF.midonet_host_uuid_path)
         lines = f.readlines()
         host_uuid = filter(lambda x: x.startswith('host_uuid='),
                          lines)[0].strip()[len('host_uuid='):]
@@ -69,16 +93,16 @@ class MidonetVifDriver(vif.VIFDriver):
     def _create_vif(self, instance_uuid, mapping, create_device):
         host_dev_name = self._get_dev_name(instance_uuid, mapping['vif_uuid'])
         peer_dev_name = None
-        if FLAGS.libvirt_type == 'lxc':
+        if CONF.libvirt_type == 'lxc':
             peer_dev_name = 'lv' + host_dev_name[4:]
 
         if not create_device:
             return (host_dev_name, peer_dev_name)
 
-        if FLAGS.libvirt_type == 'kvm' or FLAGS.libvirt_type == 'qemu':
+        if CONF.libvirt_type == 'kvm' or CONF.libvirt_type == 'qemu':
             utils.execute('ip', 'tuntap', 'add', host_dev_name, 'mode', 'tap',
                           run_as_root=True)
-        elif FLAGS.libvirt_type == 'lxc':
+        elif CONF.libvirt_type == 'lxc':
             utils.execute('ip', 'link', 'add', 'name', host_dev_name, 'type',
                           'veth', 'peer', 'name', peer_dev_name,
                           run_as_root=True)
@@ -112,7 +136,7 @@ class MidonetVifDriver(vif.VIFDriver):
         # create if-vport mapping.
         host_uuid = self._get_host_uuid()
         try:
-            host = self.mido_mgmt.get_host(host_uuid)
+            host = self.mido_api.get_host(host_uuid)
         except w_exc.HTTPError as e:
             LOG.error('Failed to create a if-vport mapping on host=%s',
                       host_uuid)
@@ -120,25 +144,11 @@ class MidonetVifDriver(vif.VIFDriver):
         host.add_host_interface_port().port_id(vport_id)\
             .interface_name(host_dev_name).create()
 
-        # construct data for libvirt xml and return it.
-        conf = config.LibvirtConfigGuestInterface()
-        if vif_flags.libvirt_use_virtio_for_bridges:
-            conf.model = 'virtio'
-        conf.net_type = 'ethernet'
-        if FLAGS.libvirt_type == 'kvm' or FLAGS.libvirt_type == 'qemu':
-            conf.target_dev = host_dev_name
-        elif FLAGS.libvirt_type == 'lxc':
-            conf.target_dev = peer_dev_name
-        conf.script = ''
-        conf.mac_addr = vif[1]['mac']
-        return conf
-
     def unplug(self, instance, vif, **kwargs):
         """
         Tear down the tap interface.
         Note that we don't need to tear down the if-vport mapping since,
-        at this point, it should've been deleted when vport was deleted
-        from Nova.
+        at this point, it should've been deleted when nova deleted the port.
         """
         LOG.debug('instance=%r, vif=%r, kwargs=%r', instance, vif, kwargs)
         try:

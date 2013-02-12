@@ -15,38 +15,38 @@
 #    License for the specific language governing permissions and limitations
 #    under the License.
 
-from nova import flags
 from nova.openstack.common import log as logging
 from nova.openstack.common import cfg
-from nova.network.quantumv2.api import FLAGS as quantum_flags
+from nova.network.quantumv2.api import CONF as quantum_conf
 
-from midonet.client.mgmt import MidonetMgmt
-from midonet.client.web_resource import WebResource
-from midonet.auth.keystone import KeystoneAuth
+from midonetclient.api import MidonetApi
+from midonetclient.web_resource import WebResource
+from midonetclient.auth.keystone import KeystoneAuth
 
 LOG = logging.getLogger('nova...' + __name__)
 
 midonet_opts = [
     cfg.StrOpt('midonet_uri',
-               default='http://localhost:8080/midolmanj-mgmt',
+               default='http://localhost:8080/midonet-api',
                help='URI for MidoNet REST API server.'),
     ]
 
-FLAGS = flags.FLAGS
-FLAGS.register_opts(midonet_opts)
+CONF = cfg.CONF
+CONF.register_opts(midonet_opts)
 
-mido_mgmt = None
+mido_api = None
 
-def get_mido_mgmt():
-    global mido_mgmt
-    if mido_mgmt == None:
-        auth = KeystoneAuth(uri=quantum_flags.quantum_admin_auth_url,
-                            username=quantum_flags.quantum_admin_username,
-                            password=quantum_flags.quantum_admin_password,
-                            tenant_name=quantum_flags.quantum_admin_tenant_name)
+
+def get_mido_api():
+    global mido_api
+    if mido_api == None:
+        auth = KeystoneAuth(uri=quantum_conf.quantum_admin_auth_url,
+                            username=quantum_conf.quantum_admin_username,
+                            password=quantum_conf.quantum_admin_password,
+                            tenant_name=quantum_conf.quantum_admin_tenant_name)
         web_resource = WebResource(auth, logger=LOG)
 
-        mido_mgmt = MidonetMgmt(midonet_uri=FLAGS.midonet_uri,
+        mido_api = MidonetApi(midonet_uri=CONF.midonet_uri,
                                 web_resource=web_resource, logger=LOG)
 
-    return mido_mgmt
+    return mido_api
