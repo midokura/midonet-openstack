@@ -41,7 +41,7 @@ CONF.register_opts(midonet_vif_driver_opts)
 
 class MidonetVifDriver(vif.LibvirtBaseVIFDriver):
 
-    def __init__(self, **kwargs):
+    def __init__(self, *args, **kwargs):
         self.mido_api = midonet_connection.get_mido_api()
 
     def get_config(self, instance, network, mapping):
@@ -141,8 +141,11 @@ class MidonetVifDriver(vif.LibvirtBaseVIFDriver):
             LOG.error('Failed to create a if-vport mapping on host=%s',
                       host_uuid)
             raise e
-        host.add_host_interface_port().port_id(vport_id)\
-            .interface_name(host_dev_name).create()
+        try:
+            host.add_host_interface_port().port_id(vport_id)\
+                .interface_name(host_dev_name).create()
+        except w_exc.HTTPError as e:
+            LOG.warn('Faild binding vport=%r to device=%r', vport_id, host_dev_name)
 
     def unplug(self, instance, vif, **kwargs):
         """
