@@ -17,33 +17,31 @@
 
 from nova import context
 from nova import db
-from nova import flags
-from nova.network.sg import SecurityGroupHandlerBase
-from nova.virt.firewall import FirewallDriver
+from nova.network import sg
+from nova.virt import firewall
+from nova.openstack.common import cfg
 from nova.openstack.common import log as logging
 
 
-from midolman.nova import midonet_connection
-from midolman.common.openstack import ChainManager, PortGroupManager,\
-        RuleManager
-import midonet.client.port_type as PortType
+from midonet.nova import midonet_connection
+from midonet.nova.network import midonet_lib
 
 
 LOG = logging.getLogger('nova...' + __name__)
-FLAGS = flags.FLAGS
+CONF = cfg.CONF
 
 
-class MidonetFirewallDriver(FirewallDriver):
+class MidonetFirewallDriver(firewall.FirewallDriver):
     """Firewall driver to setup security group in MidoNet.
        This is called from nova-compute. Since we don't really
-       depend on the virt driver, this file is in midolman.nova.network.
+       depend on the virt driver, this file is in midonet.nova.network.
     """
 
-    def __init__(self, **kwargs):
-        LOG.debug('kwargs=%r', kwargs)
-        self.mido_conn = midonet_connection.get_mido_mgmt()
-        self.chain_manager = ChainManager(self.mido_conn)
-        self.rule_manager = RuleManager(self.mido_conn)
+    def __init__(self, virtapi, **kwarg):
+        LOG.debug('virtapi=%r, kwarg=%r', virtapi, kwarg)
+        self.mido_conn = midonet_connection.get_mido_api()
+        self.chain_manager = midonet_lib.ChainManager(self.mido_conn)
+        self.rule_manager = midonet_lib.RuleManager(self.mido_conn, virtapi)
 
     def prepare_instance_filter(self, instance, network_info):
         LOG.debug('instance=%r, network_info=%r', instance, network_info)
@@ -70,7 +68,7 @@ class MidonetFirewallDriver(FirewallDriver):
                 return
 
             self.rule_manager.create_for_vif(tenant_id, instance, network,
-                    vif_chains, FLAGS.allow_same_net_traffic)
+                    vif_chains, CONF.allow_same_net_traffic)
 
     def unfilter_instance(self, instance, network_info):
         LOG.debug('instance=%r, network_info=%r', instance, network_info)
@@ -108,18 +106,19 @@ class MidonetFirewallDriver(FirewallDriver):
         return True
 
 
-class MidonetSecurityGroupHandler(SecurityGroupHandlerBase):
-    """ This is security groups handler for MidoNet.
+class MidonetSecurityGroupHandler(sg.SecurityGroupHandlerBase):
+    """
+    This is security groups handler for MidoNet.
         When security groups and rules are modified, this handler gets
         called from nova-api.
     """
 
-    def __init__(self):
-        LOG.debug('')
-        self.mido_conn = midonet_connection.get_mido_mgmt()
-        self.chain_manager = ChainManager(self.mido_conn)
-        self.pg_manager = PortGroupManager(self.mido_conn)
-        self.rule_manager = RuleManager(self.mido_conn)
+    def __init__(self, *args, **kwarg):
+        LOG.debug('args=%r, kwargs=%r', args, kwarg)
+        self.mido_conn = midonet_connection.get_mido_api()
+        self.chain_manager = midonet_lib.ChainManager(self.mido_conn)
+        self.pg_manager = midonet_lib.PortGroupManager(self.mido_conn)
+        self.rule_manager = midonet_lib.RuleManager(self.mido_conn)
 
     def trigger_security_group_create_refresh(self, context, group):
         """Create a chain and port group for the security group."""
