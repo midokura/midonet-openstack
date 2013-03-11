@@ -19,9 +19,7 @@ from nova.openstack.common import log as logging
 from nova.openstack.common import cfg
 from nova.network.quantumv2.api import CONF as quantum_conf
 
-from midonetclient.api import MidonetApi
-from midonetclient.web_resource import WebResource
-from midonetclient.auth.keystone import KeystoneAuth
+from midonetclient import api
 
 LOG = logging.getLogger('nova...' + __name__)
 
@@ -31,22 +29,39 @@ midonet_opts = [
                help='URI for MidoNet REST API server.'),
     ]
 
-CONF = cfg.CONF
-CONF.register_opts(midonet_opts)
+midonet_opts = [
+    cfg.StrOpt('midonet_uri', default='http://localhost:8080/midonet-api',
+               help=_('MidoNet API server URI.')),
+    cfg.StrOpt('username', default='admin',
+               help=_('MidoNet admin username.')),
+    cfg.StrOpt('password', default='passw0rd',
+               help=_('MidoNet admin password.')),
+    cfg.StrOpt('project_id',
+               default='77777777-7777-7777-7777-777777777777',
+               help=_('ID of the project that MidoNet admin user'
+                      'belongs to.')),
+    cfg.StrOpt('provider_router_id',
+               default=None,
+               help=_('Virtual provider router ID.')),
+    cfg.StrOpt('metadata_router_id',
+               default=None,
+               help=_('Virtual metadata router ID.')),
+    cfg.StrOpt('mode',
+               default='dev',
+               help=_('For development mode.'))
+]
 
+CONF = cfg.CONF
+CONF.register_opts(midonet_opts, 'MIDONET')
 mido_api = None
 
 
 def get_mido_api():
     global mido_api
     if mido_api == None:
-        auth = KeystoneAuth(uri=quantum_conf.quantum_admin_auth_url,
-                            username=quantum_conf.quantum_admin_username,
-                            password=quantum_conf.quantum_admin_password,
-                            tenant_name=quantum_conf.quantum_admin_tenant_name)
-        web_resource = WebResource(auth, logger=LOG)
-
-        mido_api = MidonetApi(midonet_uri=CONF.midonet_uri,
-                                web_resource=web_resource, logger=LOG)
+        mido_api = api.MidonetApi(CONF.MIDONET.midonet_uri,
+                                  CONF.MIDONET.username,
+                                  CONF.MIDONET.password,
+                                  CONF.MIDONET.project_id)
 
     return mido_api

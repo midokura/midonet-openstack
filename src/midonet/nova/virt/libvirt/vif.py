@@ -18,8 +18,9 @@
 
 from webob import exc as w_exc
 
+from oslo.config import cfg
+
 from nova import utils
-from nova.openstack.common import cfg
 from nova.openstack.common import log as logging
 from nova.virt.libvirt import config as vconfig
 from nova.virt.libvirt import vif
@@ -37,6 +38,7 @@ midonet_vif_driver_opts = [
 
 CONF = cfg.CONF
 CONF.register_opts(midonet_vif_driver_opts)
+CONF.import_opt('libvirt_type', 'nova.virt.libvirt.driver')
 
 
 class MidonetVifDriver(vif.LibvirtBaseVIFDriver):
@@ -44,7 +46,7 @@ class MidonetVifDriver(vif.LibvirtBaseVIFDriver):
     def __init__(self, *args, **kwargs):
         self.mido_api = midonet_connection.get_mido_api()
 
-    def get_config(self, instance, network, mapping):
+    def get_config(self, instance, network, mapping, image_meta):
 
         vport_id = mapping['vif_uuid']
         host_dev_name = self._get_dev_name(instance['uuid'], vport_id)
