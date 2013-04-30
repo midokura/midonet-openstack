@@ -34,6 +34,9 @@ midonet_vif_driver_opts = [
     cfg.StrOpt('midonet_host_uuid_path',
                default='/etc/midolman/host_uuid.properties',
                help='path to midonet host uuid file'),
+    cfg.BoolOpt('midonet_use_tunctl',
+                default='False',
+                help='Use tunctl instead of ip command'),
     ]
 
 CONF = cfg.CONF
@@ -102,8 +105,12 @@ class MidonetVifDriver(vif.LibvirtBaseVIFDriver):
             return (host_dev_name, peer_dev_name)
 
         if CONF.libvirt_type == 'kvm' or CONF.libvirt_type == 'qemu':
-            utils.execute('ip', 'tuntap', 'add', host_dev_name, 'mode', 'tap',
-                          run_as_root=True)
+            if (CONF.midonet_use_tunctl):
+                utils.execute('tunctl', '-p', '-t', host_dev_name,
+                              run_as_root=True)
+            else:
+                utils.execute('ip', 'tuntap', 'add', host_dev_name, 'mode',
+                              'tap', run_as_root=True)
         elif CONF.libvirt_type == 'lxc':
             utils.execute('ip', 'link', 'add', 'name', host_dev_name, 'type',
                           'veth', 'peer', 'name', peer_dev_name,
