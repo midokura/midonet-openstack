@@ -1,11 +1,6 @@
-midonet-openstack (12.06.0) quantal; urgency=low
+midonet-openstack (1.0.0~rc1) precise; urgency=low
 
-  * Official Babuza release.
+  * RC1 for v1.0.0
 
- -- Tomoe Sugihara <tomoe@midokura.com>  Fri, 15 Jun 2012 18:31:41 +0900
+ -- Tomoe Sugihara <tomoe@midokura.com>  Tue, 14 May 2013 11:53:39 +0900
 
-midonet-openstack (12.06~2) precise; urgency=low
-
-  * pre Babuza ~2
-
- -- Tomoe Sugihara <tomoe@midokura.com>  Wed, 06 Jun 2012 17:29:14 +0900
