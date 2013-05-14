@@ -17,5 +17,5 @@ Vcs-Browser: https://github.com/midokura/midonet-openstack
 
 Package: python-midonet-openstack
 Architecture: all
-Depends: ${misc:Depends}, ${python:Depends}, python-midonet-client
+Depends: ${misc:Depends}, ${python:Depends}, python-midonetclient
 Description: OpenStack plugin for MidoNet.
