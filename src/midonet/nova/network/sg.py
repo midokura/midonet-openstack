@@ -15,11 +15,12 @@
 #    License for the specific language governing permissions and limitations
 #    under the License.
 
+from oslo.config import cfg
+
 from nova import context
 from nova import db
 from nova.network import sg
 from nova.virt import firewall
-from nova.openstack.common import cfg
 from nova.openstack.common import log as logging
 
 
