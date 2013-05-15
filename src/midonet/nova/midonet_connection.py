@@ -18,7 +18,6 @@
 from oslo.config import cfg
 
 from nova.openstack.common import log as logging
-from nova.network.quantumv2.api import CONF as quantum_conf
 
 from midonetclient import api
 
