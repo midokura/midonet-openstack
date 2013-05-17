@@ -184,6 +184,9 @@ class RuleManager:
         if virtapi:
             self.security_group_api = compute_api.SecurityGroupAPI()
 
+        self.chain_manager = ChainManager(self.mido_api)
+        self.pg_manager = PortGroupManager(self.mido_api)
+
     def _properties(self, os_sg_rule_id):
         return {self.OS_SG_KEY: str(os_sg_rule_id)}
 
@@ -377,7 +380,22 @@ class RuleManager:
                 if c.get_name() == cname:
                     jump_chain_id = c.get_id()
                     break
-            assert jump_chain_id != None
+
+            # sg handler must have missed the event of creating the SG.
+            # Now doing the equivalent as a quick workaround.
+            if not jump_chain_id:
+                def create_sg_resources(tenant_id, sg_id, sg_name):
+                    self.chain_manager.create_for_sg(tenant_id, sg_id, sg_name)
+                    self.pg_manager.create(tenant_id, sg_id, sg_name)
+                create_sg_resources(tenant_id, sg['id'], sg['name'])
+
+                chains = self.mido_api.get_chains({'tenant_id': tenant_id})
+                jump_chain_id = None
+                for c in chains:
+                    if c.get_name() == cname:
+                        jump_chain_id = c.get_id()
+                        break
+                assert jump_chain_id
 
             rule = out_chain.add_rule().type('jump')\
                                        .position(position)\
