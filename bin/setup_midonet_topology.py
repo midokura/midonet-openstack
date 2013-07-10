@@ -5,7 +5,7 @@ import sys
 
 from midonetclient.api import MidonetApi
 
-from quantum.plugins.midonet.midonet_lib import MidoClient
+from neutron.plugins.midonet.midonet_lib import MidoClient
 
 PROVIDER_ROUTER_NAME = 'MidonetProviderRouter'
 METADATA_ROUTER_NAME = 'OpenstackMetadataRouter'
@@ -36,7 +36,7 @@ def _get_or_create_provider_router(provider_tenant_id):
 
 
 def _ensure_metadata_devices():
-    """When quantum-server runs for the first time,
+    """When neutron-server runs for the first time,
     it creates metadata router, bridge, link between them,
     and a exterior bridge port.
 
@@ -56,6 +56,7 @@ def _ensure_metadata_devices():
         if r.get_name() == METADATA_ROUTER_NAME:
             metadata_router = r
             found = True
+            break
 
     if not found:
         # create MDR and an interior port.
