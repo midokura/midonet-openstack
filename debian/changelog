@@ -1,3 +1,9 @@
+midonet-openstack (1:2013.1-0ubuntu1) precise-grizzly; urgency=low
+
+  * Change the version to reflect the OpenStack version 
+
+ -- Ryu Ishimoto <ryu@midokura.com>  Mon, 15 Jul 2013 23:11:47 +0900
+
 midonet-openstack (1.0.0~rc1) precise; urgency=low
 
   * RC1 for v1.0.0

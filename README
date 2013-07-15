@@ -18,3 +18,6 @@ Installation and Configuration
 	 installing and setting up MidoNet for OpenStack.  For more info
 	 about MidoNet for OpenStack please go to
 	 http://midokura.com/midonet/openstack
+
+MidoNet Compatibility
+      OpenStack Grizzly is compatible with MidoNet v1.0 and above.
