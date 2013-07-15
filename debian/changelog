@@ -1,3 +1,9 @@
+midonet-openstack (1:2013.1-0ubuntu1) precise-havana; urgency=low
+
+  * Change the version format to match OpenStack's 
+
+ -- Ryu Ishimoto <ryu@midokura.com>  Mon, 15 Jul 2013 23:26:07 +0900
+
 midonet-openstack (1.0.0~rc1) precise; urgency=low
 
   * RC1 for v1.0.0
