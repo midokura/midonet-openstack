@@ -35,7 +35,7 @@ midonet_vif_driver_opts = [
                default='/etc/midolman/host_uuid.properties',
                help='path to midonet host uuid file'),
     cfg.BoolOpt('midonet_use_tunctl',
-                default='False',
+                default=False,
                 help='Use tunctl instead of ip command'),
     ]
 
@@ -105,7 +105,7 @@ class MidonetVifDriver(vif.LibvirtBaseVIFDriver):
             return (host_dev_name, peer_dev_name)
 
         if CONF.libvirt_type == 'kvm' or CONF.libvirt_type == 'qemu':
-            if (CONF.midonet_use_tunctl):
+            if CONF.midonet_use_tunctl:
                 utils.execute('tunctl', '-p', '-t', host_dev_name,
                               run_as_root=True)
             else:
