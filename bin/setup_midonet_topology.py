@@ -101,8 +101,7 @@ def main():
     password = args.password
     provider_tenant_id = args.provider_tenant_id
 
-    mido_api = MidonetApi('http://localhost:8080/midonet-api',
-                          username, password, provider_tenant_id)
+    mido_api = MidonetApi(midonet_uri, username, password, provider_tenant_id)
 
     args.func(args)
 
