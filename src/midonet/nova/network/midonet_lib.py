@@ -260,6 +260,8 @@ class RuleManager:
             # set data for midonet rule
             tp_src_start = tp_src_end = icmp_type
             tp_dst_start = tp_dst_end = icmp_code
+        tp_src  = {'start': tp_src_start, 'end': tp_src_end}
+        tp_dst  = {'start': tp_dst_start, 'end': tp_dst_end}
 
         # create an accept rule
         properties = self._properties(rule['id'])
@@ -269,10 +271,8 @@ class RuleManager:
                         .nw_proto(nw_proto)\
                         .nw_src_address(nw_src_address)\
                         .nw_src_length(nw_src_length)\
-                        .tp_src_start(tp_src_start)\
-                        .tp_src_end(tp_src_end)\
-                        .tp_dst_start(tp_dst_start)\
-                        .tp_dst_end(tp_dst_end)\
+                        .tp_src(tp_src)\
+                        .tp_dst(tp_dst)\
                         .properties(properties)\
                         .create()
 
