@@ -1,4 +1,12 @@
-midonet-openstack (1:2013.1-0ubuntu1) precise-grizzly; urgency=low
+midonet-openstack (1:2013.1.2-0ubuntu1) precise-grizzly; urgency=low
+
+  * Change the version to include patch version.
+  * Bug Fix
+    - Update SG implementation with the new API change 
+
+ -- Ryu Ishimoto <ryu@midokura.com>  Sat, 20 Jul 2013 07:57:17 +0900
+
+midonet-openstack (1:2013.1.1-0ubuntu1) precise-grizzly; urgency=low
 
   * Change the version to reflect the OpenStack version 
 
