@@ -43,6 +43,7 @@ CONF = cfg.CONF
 CONF.register_opts(midonet_vif_driver_opts)
 CONF.import_opt('libvirt_type', 'nova.virt.libvirt.driver')
 
+MAX_MTU_SIZE = '65521' # 65535 minus 14-byte Ethernet header.
 
 class MidonetVifDriver(vif.LibvirtBaseVIFDriver):
 
@@ -117,7 +118,7 @@ class MidonetVifDriver(vif.LibvirtBaseVIFDriver):
                           run_as_root=True)
             utils.execute('ip', 'link', 'set', 'dev', peer_dev_name, 'address',
                           mapping['mac'], run_as_root=True)
-        utils.execute('ip', 'link', 'set', host_dev_name, 'up',
+        utils.execute('ip', 'link', 'set', host_dev_name, 'up', 'mtu', MAX_MTU_SIZE,
                       run_as_root=True)
         return (host_dev_name, peer_dev_name)
 
