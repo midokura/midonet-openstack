@@ -346,7 +346,9 @@ class RuleManager:
 
         position = 1
         # get the port groups to match for the rule
-        port_groups = self.mido_api.get_port_groups({'tenant_id': tenant_id})
+        all_port_groups = self.mido_api.get_port_groups({'tenant_id': tenant_id})
+        sg_chain_names = [chain_name(sg['id'], sg['name']) for sg in security_groups]
+        port_groups = [pg for pg in all_port_groups if pg.get_name() in sg_chain_names]
 
         if allow_same_net_traffic:
             LOG.debug('accept cidr=%r', net_cidr)
@@ -403,11 +405,6 @@ class RuleManager:
                                        .jump_chain_name(cname)\
                                        .create()
             position += 1
-
-            # Look for the port group that the vif should belong to
-            for pg in port_groups:
-                if pg.get_name() != cname:
-                    port_groups.remove(pg)
 
         # add reverse flow matching at the end
         out_chain.add_rule().type('accept')\
