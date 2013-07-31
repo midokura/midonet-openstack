@@ -5,14 +5,7 @@ import sys
 
 from midonetclient.api import MidonetApi
 
-from neutron.plugins.midonet.midonet_lib import MidoClient
-
 PROVIDER_ROUTER_NAME = 'MidonetProviderRouter'
-METADATA_ROUTER_NAME = 'OpenstackMetadataRouter'
-METADATA_BRIDGE_NAME = 'OpenstackMetadataBridge'
-
-mido_api = None
-mido_client = None
 provider_tenant_id = None
 
 
@@ -34,135 +27,14 @@ def _get_or_create_provider_router(provider_tenant_id):
                    .name(PROVIDER_ROUTER_NAME)\
                    .create()
 
-
-def _ensure_metadata_devices():
-    """When neutron-server runs for the first time,
-    it creates metadata router, bridge, link between them,
-    and a exterior bridge port.
-
-    If they are already set up, store the references to the
-    instance variables.
-    """
-
-    #
-    # MDR
-    #
-
-    routers = mido_api.get_routers(
-        {'tenant_id': provider_tenant_id})
-
-    found = False
-    for r in routers:
-        if r.get_name() == METADATA_ROUTER_NAME:
-            metadata_router = r
-            found = True
-            break
-
-    if not found:
-        # create MDR and an interior port.
-        metadata_router = mido_api.add_router()\
-                                  .tenant_id(provider_tenant_id)\
-                                  .name(METADATA_ROUTER_NAME)\
-                                  .create()
-
-        mdr_port = metadata_router.add_interior_port()\
-                                  .port_address('169.254.169.253')\
-                                  .network_address('169.254.0.0')\
-                                  .network_length(16)\
-                                  .create()
-
-        # Add a route to metadata server
-        metadata_router.add_route().type('Normal')\
-                                   .src_network_addr('0.0.0.0')\
-                                   .src_network_length(0)\
-                                   .dst_network_addr('169.254.169.254')\
-                                   .dst_network_length(32)\
-                                   .weight(100)\
-                                   .next_hop_port(mdr_port.get_id())\
-                                   .create()
-
-        # Create chains for metadata router
-        chains = mido_client.create_router_chains(metadata_router)
-
-
-        # set chains to in/out filters
-        metadata_router.inbound_filter_id(chains['in'].get_id())\
-                            .outbound_filter_id(chains['out'].get_id())\
-                            .update()
-
-        # add port translation rules for tcp port 80 <-> 8775
-        nat_targets = []
-        nat_targets.append(
-            {'addressFrom': '169.254.169.254',
-             'addressTo': '169.254.169.254',
-             'portFrom': 8775,
-             'portTo': 8775
-             })
-
-        chains['in'].add_rule().nw_dst_address('169.254.169.254')\
-                               .nw_dst_length(32)\
-                               .tp_dst_start(80)\
-                               .tp_dst_end(80)\
-                               .type('dnat')\
-                               .flow_action('accept')\
-                               .nat_targets(nat_targets)\
-                               .position(1)\
-                               .create()
-
-        chains['out'].add_rule().nw_src_address('169.254.169.254')\
-                                .nw_src_length(32)\
-                                .tp_src_start(8775)\
-                                .tp_src_end(8775)\
-                                .type('rev_dnat')\
-                                .flow_action('accept')\
-                                .position(1)\
-                                .create()
-
-    #
-    # MDB
-    #
-    found = False
-    for b in mido_api.get_bridges({'tenant_id': provider_tenant_id}):
-
-        if b.get_name() == METADATA_BRIDGE_NAME:
-            metadata_bridge = b
-            found = True
-            for p in b.get_ports():
-                if p.get_type() == 'ExteriorBridge':
-                    mdb_port = p
-
-
-    if not found:
-        # create MDB and an interior port on it, then link it to MDR
-        metadata_bridge = mido_api.add_bridge()\
-                                  .tenant_id(provider_tenant_id)\
-                                  .name(METADATA_BRIDGE_NAME)\
-                                  .create()
-
-        mdb_port = metadata_bridge.add_interior_port().create()
-        mdb_port.link(mdr_port.get_id())
-
-        # create a exterior port on MDB
-        mdb_port = metadata_bridge.add_exterior_port().create()
-
-    return {'mdr': metadata_router, 'mdb': metadata_bridge, 'mdbp': mdb_port}
-
-
-
 def setup_provider_devices(args):
     # Handle provider router
     provider_router = _get_or_create_provider_router(provider_tenant_id)
 
     # Handle Metadata devices
-    md_devices =  _ensure_metadata_devices()
     print "provider_router_id=%s" %  provider_router.get_id()
-    print 'metadata_router_id=%s' % md_devices['mdr'].get_id()
-    print 'metadata_bridge_id=%s' % md_devices['mdb'].get_id()
-    print 'metadata_bridge_port_id=%s' % md_devices['mdbp'].get_id()
 
 def setup_fake_uplink(args):
-    import pdb
-    pdb.set_trace()
     routers = mido_api.get_routers(
                     {'tenant_id': provider_tenant_id})
 
@@ -198,7 +70,6 @@ def setup_fake_uplink(args):
 def main():
     global provider_tenant_id
     global mido_api
-    global mido_client
 
     base_parser = argparse.ArgumentParser()
     base_parser.add_argument('-u', help='Midonet admin username',
@@ -230,9 +101,7 @@ def main():
     password = args.password
     provider_tenant_id = args.provider_tenant_id
 
-    mido_api = MidonetApi('http://localhost:8080/midonet-api',
-                          username, password, provider_tenant_id)
-    mido_client = MidoClient(mido_api)
+    mido_api = MidonetApi(midonet_uri, username, password, provider_tenant_id)
 
     args.func(args)
 
