@@ -1,3 +1,11 @@
+midonet-openstack (1:2013.1.3-0ubuntu1) precise-grizzly; urgency=low
+
+  * Bug Fix
+    - [70e1d1d] Ports were not added correctly to SG
+    - [7e98ef1] Set MTU size to 65021 when creating TAP interface.
+
+ -- Ryu Ishimoto <ryu@midokura.com>  Mon, 05 Aug 2013 23:54:56 +0900
+
 midonet-openstack (1:2013.1.2-0ubuntu1) precise-grizzly; urgency=low
 
   * Change the version to include patch version.
