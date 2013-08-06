@@ -31,24 +31,24 @@ midonet_opts = [
 
 midonet_opts = [
     cfg.StrOpt('midonet_uri', default='http://localhost:8080/midonet-api',
-               help=_('MidoNet API server URI.')),
+               help=('MidoNet API server URI.')),
     cfg.StrOpt('username', default='admin',
-               help=_('MidoNet admin username.')),
+               help=('MidoNet admin username.')),
     cfg.StrOpt('password', default='passw0rd',
-               help=_('MidoNet admin password.')),
+               help=('MidoNet admin password.')),
     cfg.StrOpt('project_id',
                default='77777777-7777-7777-7777-777777777777',
-               help=_('ID of the project that MidoNet admin user'
+               help=('ID of the project that MidoNet admin user'
                       'belongs to.')),
     cfg.StrOpt('provider_router_id',
                default=None,
-               help=_('Virtual provider router ID.')),
+               help=('Virtual provider router ID.')),
     cfg.StrOpt('metadata_router_id',
                default=None,
-               help=_('Virtual metadata router ID.')),
+               help=('Virtual metadata router ID.')),
     cfg.StrOpt('mode',
                default='dev',
-               help=_('For development mode.'))
+               help=('For development mode.'))
 ]
 
 CONF = cfg.CONF
