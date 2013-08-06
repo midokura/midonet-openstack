@@ -1,4 +1,4 @@
-midonet-openstack (1:2013.1.2-1ubuntu1) precise-grizzly; urgency=low
+midonet-openstack (1:2013.1.0-0ubuntu1.mido2) precise-grizzly; urgency=low
 
   * Bug Fix
     - Ports were not added correctly to SG
@@ -6,7 +6,7 @@ midonet-openstack (1:2013.1.2-1ubuntu1) precise-grizzly; urgency=low
 
  -- Guillermo Ontanon <guillermo@midokura.com>  Mon, 4 Aug 2013 17:07:17 +0200
 
-midonet-openstack (1:2013.1.2-0ubuntu1) precise-grizzly; urgency=low
+midonet-openstack (1:2013.1.0-0ubuntu1.mido1) precise-grizzly; urgency=low
 
   * Change the version to include patch version.
   * Bug Fix
@@ -14,7 +14,7 @@ midonet-openstack (1:2013.1.2-0ubuntu1) precise-grizzly; urgency=low
 
  -- Ryu Ishimoto <ryu@midokura.com>  Sat, 20 Jul 2013 07:57:17 +0900
 
-midonet-openstack (1:2013.1.1-0ubuntu1) precise-grizzly; urgency=low
+midonet-openstack (1:2013.1.0-0ubuntu1.mido0) precise-grizzly; urgency=low
 
   * Change the version to reflect the OpenStack version 
 
