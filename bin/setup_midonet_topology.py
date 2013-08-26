@@ -41,7 +41,7 @@ def setup_fake_uplink(args):
     for r in routers:
         if r.get_name() == 'MidonetProviderRouter':
             provider_router = r
-            uplink_port =  provider_router.add_exterior_port()\
+            uplink_port =  provider_router.add_port()\
                                           .port_address('100.100.100.1')\
                                           .network_address('100.100.100.0')\
                                           .network_length(24).create()
