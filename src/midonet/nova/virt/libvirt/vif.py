@@ -50,7 +50,8 @@ class MidonetVifDriver(vif.LibvirtBaseVIFDriver):
     def __init__(self, *args, **kwargs):
         self.mido_api = midonet_connection.get_mido_api()
 
-    def get_config(self, instance, network, mapping, image_meta):
+    def get_config(self, instance, network, mapping, image_meta,
+                   inst_type = None):
 
         vport_id = mapping['vif_uuid']
         host_dev_name = self._get_dev_name(instance['uuid'], vport_id)
