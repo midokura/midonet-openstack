@@ -1,6 +1,6 @@
 Name:       python-midonet-openstack
 Epoch:      1
-Version:    2013.1.2_1
+Version:    2013.1.2_2
 Release:    0 
 Summary:    OpenStack plugin for MidoNet.
 Group:      Development/Languages
@@ -25,6 +25,7 @@ cp -r src/midonet $RPM_BUILD_ROOT/%{python_sitelib}/
 %{python_sitelib}/midonet
 
 %changelog
+* Fri Oct 4 2013 Dave Cahill <dcahill@midokura.com> - 2013.1.2_2
 * Mon Aug 4 2013 Guillermo Ontanon <guillermo@midokura.com> - 2013.1.2_1
 * Thu Jul 18 2013 Takaaki Suzuki <suzuki@midokura.com> - 2013.1.2_0
 - Initial package
