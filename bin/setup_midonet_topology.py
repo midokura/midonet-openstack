@@ -72,9 +72,8 @@ def main():
     global mido_api
 
     base_parser = argparse.ArgumentParser()
-    base_parser.add_argument('-u', help='Midonet admin username',
-            metavar='midonet_uri', type=str,
-            default='http://localhost:8080/midonet-api')
+    base_parser.add_argument('midonet_uri', help='Midonet API URI',
+            type=str, default='http://localhost:8080/midonet-api')
     base_parser.add_argument('username', help='Midonet admin username',
                              type=str)
     base_parser.add_argument('password', help='Midonet admin password',
@@ -97,6 +96,7 @@ def main():
 
     args = base_parser.parse_args()
 
+    midonet_uri = args.midonet_uri
     username = args.username
     password = args.password
     provider_tenant_id = args.provider_tenant_id
