@@ -1,6 +1,6 @@
 Name:       python-midonet-openstack
 Epoch:      1
-Version:    2013.2.0_0
+Version:    2013.2.0_1
 Release:    0
 Summary:    OpenStack plugin for MidoNet.
 Group:      Development/Languages
@@ -9,6 +9,7 @@ URL:        https://github.com/midokura/midonet-openstack
 Source0:    https://github.com/midokura/midonet-openstack/python-midonet-openstack-%{version}.tar.gz
 BuildArch:  noarch
 BuildRoot:  /var/tmp/%{name}-buildroot
+Requires: python-midonetclient
 
 %description
 OpenStack plugin for MidoNet

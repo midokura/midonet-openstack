@@ -1,3 +1,9 @@
+midonet-openstack (1:2013.2.0-1ubuntu1.mido0) precise-havana; urgency=low
+
+  * 1:2013.2.0-0ubuntu1.mido1
+
+ -- Dave Cahill <dcahill@midokura.com>  Thu, 18 Feb 2014 12:57:07 +0900
+
 midonet-openstack (1:2013.2.0-0ubuntu1.mido0) precise-havana; urgency=low
 
   * Update to Havana version
